@@ -852,6 +852,22 @@ async def plot_to_pdf(output_path: str) -> str:
 
 
 # =============================================================================
+# Screenshot
+# =============================================================================
+
+@mcp.tool()
+async def capture_screenshot(output_path: str = None) -> str:
+    """Capture a screenshot of the current AutoCAD window and save as PNG.
+    Returns the file path of the saved image. Use this to visually verify
+    that drawing operations were completed correctly. The AI can view the
+    returned image file to check the result."""
+    params: dict = {}
+    if output_path:
+        params["output_path"] = output_path
+    return await _call("capture_screenshot", params)
+
+
+# =============================================================================
 # Entry point
 # =============================================================================
 

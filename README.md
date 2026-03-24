@@ -1,9 +1,10 @@
 # AutoCAD MCP Plugin
 
-AI-powered AutoCAD automation via the **Model Context Protocol (MCP)**. Enables Claude and other AI assistants to create, modify, query, and search AutoCAD drawings through natural language.
+AI-powered AutoCAD automation via the **Model Context Protocol (MCP)**. Enables Claude and other AI assistants to create, modify, query, search, and visually verify AutoCAD drawings through natural language.
 
 > "Draw a floor plan with 3 bedrooms" — and it does.
 > "Find the battery room nearest to the toilet" — and it navigates there.
+> "Take a screenshot and check if the layout looks correct" — and it verifies visually.
 
 ## Architecture
 
@@ -25,15 +26,15 @@ AI-powered AutoCAD automation via the **Model Context Protocol (MCP)**. Enables 
 ### How It Works
 
 1. The **C# plugin** loads inside AutoCAD as an addin and starts a TCP socket server on `localhost:8081`
-2. The **Python MCP server** connects to the plugin socket and exposes 70 tools via the MCP protocol
-3. **Claude** (or any MCP client) calls tools like `create_line`, `search_text`, `measure_between`, etc.
+2. The **Python MCP server** connects to the plugin socket and exposes 71 tools via the MCP protocol
+3. **Claude** (or any MCP client) calls tools like `create_line`, `search_text`, `capture_screenshot`, etc.
 4. Commands are marshaled to AutoCAD's main UI thread via `Application.Idle` + `DocumentLock`
 
 ### Thread Safety
 
 AutoCAD's .NET API is single-threaded. The plugin uses `Application.Idle` event + `DocumentLock` to safely execute commands from the socket handler threads on the main thread.
 
-## Features — 70 MCP Tools
+## Features — 71 MCP Tools
 
 ### System (5)
 | Tool | Description |
@@ -147,6 +148,11 @@ AutoCAD's .NET API is single-threaded. The plugin uses `Application.Idle` event 
 |------|-------------|
 | `zoom_extents` | Fit all entities |
 | `zoom_window` | Zoom to rectangular area |
+
+### Screenshot (1)
+| Tool | Description |
+|------|-------------|
+| `capture_screenshot` | Capture AutoCAD window as PNG for AI visual verification |
 
 ### Search & Spatial Query (3)
 | Tool | Description |
@@ -299,12 +305,13 @@ autocad-plugin/
     │   │   ├── SystemVariableCommand.cs   # Get/set system vars, execute command
     │   │   ├── StyleCommands.cs           # Dimension and text styles
     │   │   ├── QueryCommands.cs           # Measure, bounding box, select by window/properties, intersections
-    │   │   └── SearchCommands.cs          # search_text, find_nearest, measure_between
+    │   │   ├── SearchCommands.cs          # search_text, find_nearest, measure_between
+    │   │   └── ScreenshotCommand.cs       # capture_screenshot (Windows API viewport capture)
     │   └── Models/
     │       ├── ICommand.cs        # Command interface
     │       └── CommandResult.cs   # Result wrapper
     └── mcp_server/                # Python MCP Server
-        ├── server.py              # 70 MCP tools via FastMCP
+        ├── server.py              # 71 MCP tools via FastMCP
         ├── autocad_client.py      # Async TCP client with auto-reconnect
         └── requirements.txt
 ```

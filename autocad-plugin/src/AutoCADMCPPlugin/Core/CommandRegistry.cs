@@ -149,6 +149,9 @@ namespace AutoCADMCPPlugin.Core
             // === View ===
             Register(new ZoomExtentsCommand());
             Register(new ZoomWindowCommand());
+
+            // === Screenshot ===
+            Register(new CaptureScreenshotCommand());
         }
     }
 }
