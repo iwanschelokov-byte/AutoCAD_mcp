@@ -110,6 +110,7 @@ namespace AutoCADMCPPlugin.Core
             Register(new ListBlocksCommand());
             Register(new InsertBlockCommand());
             Register(new CreateBlockCommand());
+            Register(new ImportBlockCommand());
 
             // === Styles (Sprint 1) ===
             Register(new CreateDimensionStyleCommand());

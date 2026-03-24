@@ -702,6 +702,19 @@ async def insert_block(
     return await _call("insert_block", params)
 
 
+@mcp.tool()
+async def import_block(
+    source_path: str,
+    block_names: list[str] | None = None
+) -> str:
+    """Import block definitions from an external DWG file into the current drawing.
+    Use this to bring in blocks from other drawings without needing Design Center.
+    After importing, use insert_block to place them. If block_names is omitted, all user blocks are imported."""
+    params: dict = {"source_path": source_path}
+    if block_names: params["block_names"] = block_names
+    return await _call("import_block", params)
+
+
 # =============================================================================
 # Annotation Tools
 # =============================================================================

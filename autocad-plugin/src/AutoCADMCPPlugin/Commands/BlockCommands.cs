@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using Newtonsoft.Json.Linq;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
@@ -160,6 +163,120 @@ namespace AutoCADMCPPlugin.Commands
                     return CommandResult.Ok(result);
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// Import block definitions from an external DWG file into the current drawing.
+    /// Uses Database.Insert() / WblockCloneObjects() to properly transfer blocks
+    /// without the issues of -INSERT via SendStringToExecute.
+    /// </summary>
+    public class ImportBlockCommand : ICommand
+    {
+        public string MethodName => "import_block";
+
+        public CommandResult Execute(JObject parameters)
+        {
+            Document doc = Application.DocumentManager.MdiActiveDocument;
+            if (doc == null) return CommandResult.Fail("No active document");
+
+            string sourcePath = parameters["source_path"]?.ToString();
+            if (string.IsNullOrWhiteSpace(sourcePath))
+                return CommandResult.Fail("Parameter 'source_path' is required (path to source .dwg file)");
+
+            if (!File.Exists(sourcePath))
+                return CommandResult.Fail($"Source file not found: {sourcePath}");
+
+            // Optional: specific block names to import. If empty, import all user blocks.
+            JArray blockNamesArr = parameters["block_names"] as JArray;
+            HashSet<string> requestedBlocks = null;
+            if (blockNamesArr != null && blockNamesArr.Count > 0)
+                requestedBlocks = new HashSet<string>(
+                    blockNamesArr.Select(b => b.ToString()),
+                    StringComparer.OrdinalIgnoreCase);
+
+            Database destDb = doc.Database;
+            JArray imported = new JArray();
+            JArray skipped = new JArray();
+
+            using (LockDoc())
+            {
+                // Open the source drawing as a separate database
+                using (Database srcDb = new Database(false, true))
+                {
+                    srcDb.ReadDwgFile(sourcePath, FileOpenMode.OpenForReadAndAllShare, true, null);
+
+                    using (Transaction srcTr = srcDb.TransactionManager.StartTransaction())
+                    {
+                        BlockTable srcBt = (BlockTable)srcTr.GetObject(srcDb.BlockTableId, OpenMode.ForRead);
+                        ObjectIdCollection blockIds = new ObjectIdCollection();
+
+                        foreach (ObjectId blockId in srcBt)
+                        {
+                            BlockTableRecord btr = (BlockTableRecord)srcTr.GetObject(blockId, OpenMode.ForRead);
+
+                            // Skip model/paper space and anonymous blocks
+                            if (btr.IsLayout || btr.IsAnonymous) continue;
+
+                            // If specific blocks requested, filter
+                            if (requestedBlocks != null && !requestedBlocks.Contains(btr.Name))
+                                continue;
+
+                            blockIds.Add(blockId);
+                        }
+
+                        if (blockIds.Count == 0)
+                        {
+                            srcTr.Commit();
+                            return CommandResult.Fail(
+                                requestedBlocks != null
+                                    ? $"None of the requested blocks found in {Path.GetFileName(sourcePath)}"
+                                    : $"No user blocks found in {Path.GetFileName(sourcePath)}");
+                        }
+
+                        // Clone blocks into the destination database
+                        IdMapping idMap = new IdMapping();
+                        using (Transaction destTr = destDb.TransactionManager.StartTransaction())
+                        {
+                            BlockTable destBt = (BlockTable)destTr.GetObject(destDb.BlockTableId, OpenMode.ForRead);
+
+                            destDb.WblockCloneObjects(
+                                blockIds,
+                                destDb.BlockTableId,
+                                idMap,
+                                DuplicateRecordCloning.Ignore,
+                                false);
+
+                            // Report what was imported
+                            foreach (ObjectId blockId in blockIds)
+                            {
+                                BlockTableRecord btr = (BlockTableRecord)srcTr.GetObject(blockId, OpenMode.ForRead);
+                                if (destBt.Has(btr.Name))
+                                {
+                                    imported.Add(btr.Name);
+                                }
+                                else
+                                {
+                                    skipped.Add(btr.Name);
+                                }
+                            }
+
+                            destTr.Commit();
+                        }
+
+                        srcTr.Commit();
+                    }
+                }
+            }
+
+            return CommandResult.Ok(new JObject
+            {
+                ["source"] = Path.GetFileName(sourcePath),
+                ["imported"] = imported,
+                ["imported_count"] = imported.Count,
+                ["skipped_existing"] = skipped,
+                ["message"] = $"Imported {imported.Count} block(s) from {Path.GetFileName(sourcePath)}"
+            });
         }
     }
 }
