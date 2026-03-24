@@ -90,8 +90,21 @@ namespace AutoCADMCPPlugin.Commands
                 }
                 else
                 {
-                    db.Save();
-                    return CommandResult.Ok("Drawing saved");
+                    // db.Save() fails from Idle event context (eFileInternalErr).
+                    // Use SaveAs with current filename instead.
+                    string currentPath = db.Filename;
+                    if (string.IsNullOrEmpty(currentPath) || !File.Exists(currentPath))
+                    {
+                        return CommandResult.Fail(
+                            "Cannot save: this drawing has never been saved to disk. " +
+                            "Provide a 'path' parameter to Save As (e.g. \"C:\\\\drawings\\\\myfile.dwg\").");
+                    }
+                    db.SaveAs(currentPath, DwgVersion.Current);
+                    return CommandResult.Ok(new JObject
+                    {
+                        ["path"] = currentPath,
+                        ["message"] = $"Drawing saved to {currentPath}"
+                    });
                 }
             }
         }

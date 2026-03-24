@@ -87,7 +87,10 @@ async def drawing_open(path: str) -> str:
 @mcp.tool()
 async def drawing_save(path: str = "") -> str:
     """Save the current drawing. Optionally provide a path for Save As."""
-    return await _call("drawing_save", {"path": path})
+    params = {}
+    if path:
+        params["path"] = path
+    return await _call("drawing_save", params)
 
 
 @mcp.tool()
