@@ -90,8 +90,9 @@ namespace AutoCADMCPPlugin.Commands
                 }
                 else
                 {
-                    // db.Save() fails from Idle event context (eFileInternalErr).
-                    // Use SaveAs with current filename instead.
+                    // db.Save() and db.SaveAs(currentPath) both fail when AutoCAD
+                    // holds a file lock on the open drawing (eFilerError / eFileInternalErr).
+                    // Use QSAVE which goes through AutoCAD's internal save mechanism.
                     string currentPath = db.Filename;
                     if (string.IsNullOrEmpty(currentPath) || !File.Exists(currentPath))
                     {
@@ -99,7 +100,7 @@ namespace AutoCADMCPPlugin.Commands
                             "Cannot save: this drawing has never been saved to disk. " +
                             "Provide a 'path' parameter to Save As (e.g. \"C:\\\\drawings\\\\myfile.dwg\").");
                     }
-                    db.SaveAs(currentPath, DwgVersion.Current);
+                    doc.SendStringToExecute("_.QSAVE\n", true, false, false);
                     return CommandResult.Ok(new JObject
                     {
                         ["path"] = currentPath,
