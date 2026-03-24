@@ -106,9 +106,9 @@ namespace AutoCADMCPPlugin.Commands
 
         public CommandResult Execute(JObject parameters)
         {
-            string command = parameters["command"]?.ToString();
-            if (string.IsNullOrEmpty(command))
-                return CommandResult.Fail("Parameter 'command' is required");
+            string command = parameters["command"]?.ToString()?.Trim();
+            if (string.IsNullOrWhiteSpace(command))
+                return CommandResult.Fail("Parameter 'command' is required and cannot be empty/whitespace");
 
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null)
