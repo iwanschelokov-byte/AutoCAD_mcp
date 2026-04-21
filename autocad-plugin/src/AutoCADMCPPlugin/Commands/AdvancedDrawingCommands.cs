@@ -340,6 +340,13 @@ namespace AutoCADMCPPlugin.Commands
                                 txt.Height = p["height"]?.Value<double>() ?? 2.5;
                                 double rot = p["rotation"]?.Value<double>() ?? 0;
                                 txt.Rotation = rot * Math.PI / 180.0;
+                                string tjust = p["justification"]?.ToString() ?? "";
+                                if (tjust == "middle-center")
+                                {
+                                    txt.HorizontalMode = TextHorizontalMode.TextCenter;
+                                    txt.VerticalMode = TextVerticalMode.TextVerticalMid;
+                                    txt.AlignmentPoint = ParsePoint(p["position"], "position");
+                                }
                                 ent = txt;
                                 break;
 
@@ -350,6 +357,9 @@ namespace AutoCADMCPPlugin.Commands
                                 mt.TextHeight = p["height"]?.Value<double>() ?? 2.5;
                                 double w = p["width"]?.Value<double>() ?? 0;
                                 if (w > 0) mt.Width = w;
+                                string mjust = p["justification"]?.ToString() ?? "";
+                                if (mjust == "middle-center")
+                                    mt.Attachment = AttachmentPoint.MiddleCenter;
                                 ent = mt;
                                 break;
 

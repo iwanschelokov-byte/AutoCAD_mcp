@@ -884,6 +884,193 @@ async def capture_screenshot(output_path: str = None) -> str:
 
 
 # =============================================================================
+# Excel Table Import
+# =============================================================================
+
+@mcp.tool()
+async def create_table_from_excel(
+    excel_path: str,
+    position: list[float],
+    sheet_name: str = "",
+    title: str = "",
+    text_height: float = 120,
+    header_text_height: float = 140,
+    title_text_height: float = 250,
+    row_height: float = 350,
+    header_row_height: float = 400,
+    title_row_height: float = 600,
+    min_col_width: float = 2000,
+    char_width: float = 80,
+    color: int = 3,
+    layer: str = "TABLE",
+    start_row: int = 1,
+    end_row: int = 0,
+    start_col: int = 1,
+    end_col: int = 0
+) -> str:
+    """Create a table in AutoCAD from an Excel file. Reads the spreadsheet, auto-sizes columns, and draws grid lines + text.
+
+    Args:
+        excel_path: Absolute path to the .xlsx file.
+        position: Insertion point [x, y] for top-left corner of the table.
+        sheet_name: Sheet name to read (default: first sheet).
+        title: Optional title row text spanning full width.
+        text_height: Text height for data cells.
+        header_text_height: Text height for the first row (header).
+        title_text_height: Text height for the title row.
+        row_height: Row height for data cells.
+        header_row_height: Row height for the first (header) row.
+        title_row_height: Row height for the title row.
+        min_col_width: Minimum column width.
+        char_width: Approximate width per character for auto-sizing.
+        color: ACI color index (default 3 = green).
+        layer: Layer name for all entities.
+        start_row: First Excel row to read (1-based, default 1).
+        end_row: Last Excel row to read (0 = last row).
+        start_col: First Excel column to read (1-based, default 1).
+        end_col: Last Excel column to read (0 = last column).
+    """
+    import json as _json
+
+    try:
+        import openpyxl
+    except ImportError:
+        return _json.dumps({"error": "openpyxl is not installed. Run: pip install openpyxl"})
+
+    if not os.path.exists(excel_path):
+        return _json.dumps({"error": f"File not found: {excel_path}"})
+
+    # --- Read Excel ---
+    wb = openpyxl.load_workbook(excel_path, data_only=True)
+    if sheet_name:
+        if sheet_name not in wb.sheetnames:
+            return _json.dumps({"error": f"Sheet '{sheet_name}' not found. Available: {wb.sheetnames}"})
+        ws = wb[sheet_name]
+    else:
+        ws = wb.active
+
+    sr = start_row
+    er = end_row if end_row > 0 else ws.max_row
+    sc = start_col
+    ec = end_col if end_col > 0 else ws.max_column
+
+    rows_data: list[list[str]] = []
+    for row in ws.iter_rows(min_row=sr, max_row=er, min_col=sc, max_col=ec, values_only=True):
+        rows_data.append([str(v) if v is not None else "" for v in row])
+
+    if not rows_data:
+        return _json.dumps({"error": "No data found in the specified range."})
+
+    num_cols = len(rows_data[0])
+    num_rows = len(rows_data)
+
+    # --- Auto-size columns ---
+    col_widths: list[float] = []
+    for c in range(num_cols):
+        max_len = 0
+        for r in range(num_rows):
+            if c < len(rows_data[r]):
+                max_len = max(max_len, len(rows_data[r][c]))
+        w = max(min_col_width, max_len * char_width + 200)
+        col_widths.append(w)
+
+    total_w = sum(col_widths)
+    x0, y0 = position[0], position[1]
+
+    # Column X positions
+    col_x = [x0]
+    for w in col_widths:
+        col_x.append(col_x[-1] + w)
+
+    # Total height
+    has_title = bool(title)
+    total_h = (title_row_height if has_title else 0) + header_row_height + row_height * (num_rows - 1)
+
+    # --- Build entities ---
+    entities: list[dict] = []
+
+    # Horizontal lines
+    y = y0
+    entities.append({"type": "line", "params": {"start": [x0, y], "end": [x0 + total_w, y], "layer": layer, "color": color}})
+
+    if has_title:
+        y -= title_row_height
+        entities.append({"type": "line", "params": {"start": [x0, y], "end": [x0 + total_w, y], "layer": layer, "color": color}})
+
+    # Header bottom
+    y -= header_row_height
+    entities.append({"type": "line", "params": {"start": [x0, y], "end": [x0 + total_w, y], "layer": layer, "color": color}})
+
+    # Data rows
+    for i in range(1, num_rows):
+        y -= row_height
+        entities.append({"type": "line", "params": {"start": [x0, y], "end": [x0 + total_w, y], "layer": layer, "color": color}})
+
+    # Vertical lines
+    for cx in col_x:
+        entities.append({"type": "line", "params": {"start": [cx, y0], "end": [cx, y0 - total_h], "layer": layer, "color": color}})
+
+    # Title text
+    if has_title:
+        entities.append({"type": "text", "params": {
+            "position": [x0 + total_w / 2, y0 - title_row_height / 2],
+            "text": title, "height": title_text_height,
+            "layer": layer, "color": color, "justification": "middle-center"
+        }})
+
+    # Header row (first data row)
+    header_y_start = y0 - (title_row_height if has_title else 0)
+    hy = header_y_start - header_row_height / 2
+    for c in range(num_cols):
+        txt = rows_data[0][c] if c < len(rows_data[0]) else ""
+        if txt:
+            cx = col_x[c] + col_widths[c] / 2
+            entities.append({"type": "text", "params": {
+                "position": [cx, hy], "text": txt, "height": header_text_height,
+                "layer": layer, "color": color, "justification": "middle-center"
+            }})
+
+    # Data rows
+    data_y_start = header_y_start - header_row_height
+    for r in range(1, num_rows):
+        ry = data_y_start - (r - 1) * row_height - row_height / 2
+        for c in range(num_cols):
+            txt = rows_data[r][c] if c < len(rows_data[r]) else ""
+            if txt:
+                cx = col_x[c] + col_widths[c] / 2
+                entities.append({"type": "text", "params": {
+                    "position": [cx, ry], "text": txt, "height": text_height,
+                    "layer": layer, "color": color, "justification": "middle-center"
+                }})
+
+    # --- Send to AutoCAD in batches ---
+    batch_size = 500
+    all_handles: list[str] = []
+    total_created = 0
+
+    for i in range(0, len(entities), batch_size):
+        batch = entities[i:i + batch_size]
+        result_str = await _call("bulk_create", {"entities": batch})
+        result = _json.loads(result_str)
+        if "handles" in result:
+            all_handles.extend(result["handles"])
+            total_created += result.get("count", len(result["handles"]))
+
+    summary = {
+        "success": True,
+        "message": f"Table created from '{os.path.basename(excel_path)}'",
+        "sheet": ws.title,
+        "data_rows": num_rows,
+        "columns": num_cols,
+        "entities_created": total_created,
+        "table_width": total_w,
+        "table_height": total_h,
+        "position": [x0, y0],
+    }
+    return _json.dumps(summary, indent=2)
+
+
+# =============================================================================
 # Entry point
 # =============================================================================
 

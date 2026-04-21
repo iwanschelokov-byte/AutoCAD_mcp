@@ -312,6 +312,7 @@ namespace AutoCADMCPPlugin.Commands
                     if (lt.Has(layer)) table.Layer = layer;
                 }
 
+                table.GenerateLayout();
                 ObjectId id = ms.AppendEntity(table);
                 tr.AddNewlyCreatedDBObject(table, true);
                 tr.Commit();
