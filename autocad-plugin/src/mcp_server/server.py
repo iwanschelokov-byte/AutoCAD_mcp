@@ -965,14 +965,18 @@ async def create_table_from_excel(
     num_rows = len(rows_data)
 
     # --- Auto-size columns ---
+    # Use header text height for header row width calc, data text height for data rows
     col_widths: list[float] = []
     for c in range(num_cols):
-        max_len = 0
+        max_w = 0.0
         for r in range(num_rows):
-            if c < len(rows_data[r]):
-                max_len = max(max_len, len(rows_data[r][c]))
-        w = max(min_col_width, max_len * char_width + 200)
-        col_widths.append(w)
+            if c < len(rows_data[r]) and rows_data[r][c]:
+                txt_len = len(rows_data[r][c])
+                # Scale char_width by text height ratio (larger text needs wider columns)
+                h = header_text_height if r == 0 else text_height
+                w = txt_len * char_width * (h / 120.0) + 400
+                max_w = max(max_w, w)
+        col_widths.append(max(min_col_width, max_w))
 
     total_w = sum(col_widths)
     x0, y0 = position[0], position[1]
@@ -1007,10 +1011,15 @@ async def create_table_from_excel(
         entities.append({"type": "line", "params": {"start": [x0, y], "end": [x0 + total_w, y], "layer": layer, "color": color}})
 
     # Vertical lines
-    for cx in col_x:
-        entities.append({"type": "line", "params": {"start": [cx, y0], "end": [cx, y0 - total_h], "layer": layer, "color": color}})
+    vert_top = y0 - (title_row_height if has_title else 0)
+    for idx, cx in enumerate(col_x):
+        # Outer edges span full height including title row
+        if has_title and (idx == 0 or idx == len(col_x) - 1):
+            entities.append({"type": "line", "params": {"start": [cx, y0], "end": [cx, y0 - total_h], "layer": layer, "color": color}})
+        else:
+            entities.append({"type": "line", "params": {"start": [cx, vert_top], "end": [cx, y0 - total_h], "layer": layer, "color": color}})
 
-    # Title text
+    # Title text (centered via middle-center justification)
     if has_title:
         entities.append({"type": "text", "params": {
             "position": [x0 + total_w / 2, y0 - title_row_height / 2],
@@ -1018,29 +1027,32 @@ async def create_table_from_excel(
             "layer": layer, "color": color, "justification": "middle-center"
         }})
 
+    # Padding from left cell edge
+    cell_pad = 100
+
     # Header row (first data row)
     header_y_start = y0 - (title_row_height if has_title else 0)
-    hy = header_y_start - header_row_height / 2
+    hy = header_y_start - header_row_height * 0.65
     for c in range(num_cols):
         txt = rows_data[0][c] if c < len(rows_data[0]) else ""
         if txt:
-            cx = col_x[c] + col_widths[c] / 2
+            cx = col_x[c] + cell_pad
             entities.append({"type": "text", "params": {
                 "position": [cx, hy], "text": txt, "height": header_text_height,
-                "layer": layer, "color": color, "justification": "middle-center"
+                "layer": layer, "color": color
             }})
 
     # Data rows
     data_y_start = header_y_start - header_row_height
     for r in range(1, num_rows):
-        ry = data_y_start - (r - 1) * row_height - row_height / 2
+        ry = data_y_start - (r - 1) * row_height - row_height * 0.65
         for c in range(num_cols):
             txt = rows_data[r][c] if c < len(rows_data[r]) else ""
             if txt:
-                cx = col_x[c] + col_widths[c] / 2
+                cx = col_x[c] + cell_pad
                 entities.append({"type": "text", "params": {
                     "position": [cx, ry], "text": txt, "height": text_height,
-                    "layer": layer, "color": color, "justification": "middle-center"
+                    "layer": layer, "color": color
                 }})
 
     # --- Send to AutoCAD in batches ---
