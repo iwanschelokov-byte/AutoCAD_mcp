@@ -73,7 +73,7 @@ AutoCAD's .NET API is single-threaded. The plugin uses `Application.Idle` event 
 | `create_ellipse` | Ellipse with major/minor radii |
 | `create_text` | Single-line text |
 | `create_mtext` | Multi-line text with width |
-| `create_hatch` | Hatch with boundary and pattern |
+| `create_hatch` | Hatch with boundary, pattern, ACI colour, and optional true RGB |
 | `create_spline` | Smooth spline curve through points |
 | `create_table` | Table with rows, columns, and cell data |
 | `create_block` | Define a new block from geometry |
@@ -347,6 +347,33 @@ async function insertBeamSchedule(beams) {
   return r.json();
 }
 ```
+
+### Coloured fills (header bands, status swatches)
+
+`create_hatch` and the `hatch` case in `bulk_create` accept `color` (ACI 0–255) and `true_color` `[r, g, b]` (precedence over ACI). Use a `SOLID` pattern for filled cells, the same boundary the cell already uses for its grid lines, and the colour will sit *behind* any text drawn on top:
+
+```js
+{
+  jsonrpc: '2.0', id: '2', method: 'bulk_create',
+  params: {
+    entities: [
+      // dark-green title-row band, RGB pinned to the brand swatch
+      {
+        type: 'hatch',
+        params: {
+          boundary: [[0, 0], [12000, 0], [12000, 600], [0, 600]],
+          pattern: 'SOLID',
+          true_color: [37, 78, 55],
+          layer: 'TABLE_HEADER'
+        }
+      },
+      // grid lines, text, etc. — drawn after so they sit on top
+    ]
+  }
+}
+```
+
+The hatch's boundary polyline gets the same colour applied so it doesn't flash in a `ByLayer` outline against the fill.
 
 ### CORS
 

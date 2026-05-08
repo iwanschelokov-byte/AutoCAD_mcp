@@ -1,6 +1,7 @@
 using System;
 using Newtonsoft.Json.Linq;
 using Autodesk.AutoCAD.ApplicationServices;
+using Autodesk.AutoCAD.Colors;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.Geometry;
 using AutoCADMCPPlugin.Models;
@@ -398,7 +399,39 @@ namespace AutoCADMCPPlugin.Commands
                 {
                     LayerTable lt = (LayerTable)tr.GetObject(db.LayerTableId, OpenMode.ForRead);
                     if (lt.Has(layer))
+                    {
                         hatch.Layer = layer;
+                        boundary.Layer = layer;
+                    }
+                }
+
+                // Optional ACI colour override (0–255). Applied to BOTH the
+                // hatch and its boundary polyline so engineers don't see a
+                // stray ByLayer outline on top of a coloured fill.
+                int? aci = parameters["color"]?.Value<int>();
+                if (aci.HasValue && aci.Value >= 0 && aci.Value <= 255)
+                {
+                    hatch.ColorIndex = aci.Value;
+                    boundary.ColorIndex = aci.Value;
+                }
+
+                // Optional true-colour [r, g, b] override. Takes precedence
+                // over the ACI index when both are provided — pinned colours
+                // (e.g. a corporate brand green) need full RGB, not the
+                // 256-entry ACI table's nearest match.
+                JArray rgb = parameters["true_color"] as JArray;
+                if (rgb != null && rgb.Count == 3)
+                {
+                    try
+                    {
+                        byte rr = (byte)Math.Max(0, Math.Min(255, rgb[0].Value<int>()));
+                        byte gg = (byte)Math.Max(0, Math.Min(255, rgb[1].Value<int>()));
+                        byte bb = (byte)Math.Max(0, Math.Min(255, rgb[2].Value<int>()));
+                        Color trueColor = Color.FromRgb(rr, gg, bb);
+                        hatch.Color = trueColor;
+                        boundary.Color = trueColor;
+                    }
+                    catch { /* ignore malformed colour */ }
                 }
 
                 tr.Commit();
