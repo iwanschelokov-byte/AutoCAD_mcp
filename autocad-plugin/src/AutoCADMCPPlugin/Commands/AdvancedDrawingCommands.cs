@@ -370,6 +370,81 @@ namespace AutoCADMCPPlugin.Commands
                                 ent = new Ellipse(ec, Vector3d.ZAxis, new Vector3d(emaj, 0, 0), emin / emaj, 0, 2 * Math.PI);
                                 break;
 
+                            case "hatch":
+                            {
+                                // Hatch needs special handling: a closed
+                                // boundary polyline must be appended to the
+                                // database BEFORE the hatch can reference it
+                                // via AppendLoop. We do that inline here and
+                                // set `ent = null` to skip the post-switch
+                                // append/colour pass — both the boundary and
+                                // the hatch are fully appended + coloured
+                                // within this case.
+                                JArray hPts = p["boundary"] as JArray;
+                                if (hPts == null || hPts.Count < 3) continue;
+
+                                Polyline hb = new Polyline();
+                                for (int i = 0; i < hPts.Count; i++)
+                                {
+                                    Point3d hp = ParsePoint(hPts[i], $"boundary[{i}]");
+                                    hb.AddVertexAt(i, new Point2d(hp.X, hp.Y), 0, 0, 0);
+                                }
+                                hb.Closed = true;
+
+                                string hLayer = p["layer"]?.ToString();
+                                if (!string.IsNullOrEmpty(hLayer) && lt.Has(hLayer))
+                                    hb.Layer = hLayer;
+
+                                int? hAci = p["color"]?.Value<int>();
+                                if (hAci.HasValue && hAci.Value >= 0 && hAci.Value <= 255)
+                                    hb.ColorIndex = hAci.Value;
+
+                                JArray hRgb = p["true_color"] as JArray;
+                                Autodesk.AutoCAD.Colors.Color hTrueColor = null;
+                                if (hRgb != null && hRgb.Count == 3)
+                                {
+                                    try
+                                    {
+                                        byte rr = (byte)Math.Max(0, Math.Min(255, hRgb[0].Value<int>()));
+                                        byte gg = (byte)Math.Max(0, Math.Min(255, hRgb[1].Value<int>()));
+                                        byte bb = (byte)Math.Max(0, Math.Min(255, hRgb[2].Value<int>()));
+                                        hTrueColor = Autodesk.AutoCAD.Colors.Color.FromRgb(rr, gg, bb);
+                                    }
+                                    catch { /* ignore malformed colour */ }
+                                }
+                                if (hTrueColor != null) hb.Color = hTrueColor;
+
+                                ObjectId hbId = ms.AppendEntity(hb);
+                                tr.AddNewlyCreatedDBObject(hb, true);
+                                createdHandles.Add(hb.Handle.Value.ToString());
+
+                                Hatch h = new Hatch();
+                                string hPattern = p["pattern"]?.ToString() ?? "SOLID";
+                                double hScale = p["scale"]?.Value<double>() ?? 1.0;
+
+                                ms.AppendEntity(h);
+                                tr.AddNewlyCreatedDBObject(h, true);
+                                h.SetHatchPattern(HatchPatternType.PreDefined, hPattern);
+                                h.PatternScale = hScale;
+                                h.Associative = true;
+                                h.AppendLoop(
+                                    HatchLoopTypes.Outermost,
+                                    new ObjectIdCollection { hbId });
+                                h.EvaluateHatch(true);
+
+                                if (!string.IsNullOrEmpty(hLayer) && lt.Has(hLayer))
+                                    h.Layer = hLayer;
+                                if (hAci.HasValue && hAci.Value >= 0 && hAci.Value <= 255)
+                                    h.ColorIndex = hAci.Value;
+                                if (hTrueColor != null) h.Color = hTrueColor;
+
+                                createdHandles.Add(h.Handle.Value.ToString());
+
+                                ent = null; // already appended — skip the
+                                            // generic post-switch append.
+                                break;
+                            }
+
                             default:
                                 continue;
                         }
