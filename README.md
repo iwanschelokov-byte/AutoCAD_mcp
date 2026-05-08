@@ -181,11 +181,24 @@ Both targets are built simultaneously. The bundle manifest auto-selects the corr
 ### Prerequisites
 
 - **AutoCAD 2022–2026** (any edition including LT with .NET support)
-- **.NET SDK 8.0+** (for building)
 - **Python 3.10+** (for MCP server)
 - **Windows** (AutoCAD is Windows-only)
+- **.NET SDK 8.0+** (only if building from source)
 
-### Step 1: Build & Install the Plugin
+### Option A: Install Pre-built Plugin (No Build Tools Needed)
+
+**Close AutoCAD first**, then run:
+
+```bash
+cd autocad-plugin
+install-prebuilt.bat
+```
+
+This copies the pre-built DLLs from `dist/` to `%APPDATA%\Autodesk\ApplicationPlugins\` and AutoCAD will load the plugin automatically on startup.
+
+### Option B: Build from Source
+
+If you have .NET SDK installed:
 
 ```bash
 cd autocad-plugin
@@ -193,6 +206,35 @@ install.bat
 ```
 
 This builds both .NET targets, copies the DLLs to `%APPDATA%\Autodesk\ApplicationPlugins\AutoCADMCPPlugin.bundle\`, and AutoCAD will load it automatically on startup.
+
+### Option C: Manual Install (Copy & Paste)
+
+If the scripts don't work, you can install manually:
+
+1. Copy the folder `autocad-plugin/config/AutoCADMCPPlugin.bundle` to:
+   ```
+   %APPDATA%\Autodesk\ApplicationPlugins\
+   ```
+   > Tip: Paste `%APPDATA%\Autodesk\ApplicationPlugins` in Windows Explorer's address bar — it expands automatically.
+
+2. Copy the DLLs from `autocad-plugin/dist/net48/` into:
+   ```
+   %APPDATA%\Autodesk\ApplicationPlugins\AutoCADMCPPlugin.bundle\Contents\net48\
+   ```
+
+3. The final folder structure should be:
+   ```
+   %APPDATA%\Autodesk\ApplicationPlugins\
+     └── AutoCADMCPPlugin.bundle\
+           ├── PackageContents.xml
+           └── Contents\
+                 └── net48\
+                       ├── AutoCADMCPPlugin.dll
+                       └── Newtonsoft.Json.dll
+   ```
+   > For AutoCAD 2025–2026, also copy `dist/net8.0-windows/` into `Contents\net8.0-windows\`.
+
+4. Open AutoCAD — the plugin loads automatically.
 
 ### Step 2: Start the Server in AutoCAD
 
