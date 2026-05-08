@@ -14,6 +14,10 @@ AI-powered AutoCAD automation via the **Model Context Protocol (MCP)**. Enables 
 │   AI Client  │◀──────────────│  Server           │◀────────────────── │  (inside AutoCAD) │
 └─────────────┘                └──────────────────┘   localhost:8081    └──────────────────┘
                                                                               │
+┌──────────────┐                          HTTP / JSON-RPC 2.0                  │
+│   Browser    │ ──────────────────────────────────────────────────────────────▶│
+│   (web app)  │  POST http://127.0.0.1:8082/jsonrpc  (CORS + Chrome PNA ok)   │
+└──────────────┘                                                                │
                                                                        AutoCAD .NET API
 ```
 
@@ -25,10 +29,12 @@ AI-powered AutoCAD automation via the **Model Context Protocol (MCP)**. Enables 
 
 ### How It Works
 
-1. The **C# plugin** loads inside AutoCAD as an addin and starts a TCP socket server on `localhost:8081`
-2. The **Python MCP server** connects to the plugin socket and exposes 71 tools via the MCP protocol
-3. **Claude** (or any MCP client) calls tools like `create_line`, `search_text`, `capture_screenshot`, etc.
-4. Commands are marshaled to AutoCAD's main UI thread via `Application.Idle` + `DocumentLock`
+The C# plugin loads inside AutoCAD as an addin and exposes the same JSON-RPC pipeline over **two transports** simultaneously:
+
+1. **TCP socket on `localhost:8081`** — used by the Python MCP server, which marshals 71 tools over stdio for Claude / Claude Code / Claude Desktop.
+2. **HTTP loopback on `localhost:8082`** — used by browser apps that can't open raw TCP sockets (a `fetch()` call to `http://127.0.0.1:8082/jsonrpc` reaches every command in the registry, with CORS headers + Chrome Private-Network-Access support out of the box).
+
+Both transports route through the same `JsonRpcHandler`, so the 71 tools (`create_line`, `create_table`, `capture_screenshot`, …) are reachable identically from either path. Commands are marshaled to AutoCAD's main UI thread via `Application.Idle` + `DocumentLock`.
 
 ### Thread Safety
 
@@ -244,7 +250,7 @@ In Claude Code or Claude Desktop:
 
 > "Draw a circle at (50, 50) with radius 25"
 
-Or verify manually:
+Or verify manually over the TCP socket:
 
 ```python
 import socket, json
@@ -255,6 +261,64 @@ sock.sendall(json.dumps({
 }).encode() + b"\n")
 print(sock.recv(4096).decode())
 ```
+
+Or over the HTTP shim (which is what browser/web-app integrations use):
+
+```bash
+curl -s -X POST http://127.0.0.1:8082/jsonrpc \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","method":"system_status","params":{},"id":"1"}'
+```
+
+`MCPSTATUS` will report both transports as running.
+
+## Calling from a Browser / Web App
+
+The HTTP shim makes the full 71-tool surface reachable from any browser-based internal tool — no MCP client, no Claude in the loop, no per-engineer license. Engineers run the plugin once (`MCPSTART` in AutoCAD), and your web app calls `localhost:8082` directly.
+
+### Quick example: insert a table
+
+```js
+async function insertBeamSchedule(beams) {
+  const r = await fetch('http://127.0.0.1:8082/jsonrpc', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: '1',
+      method: 'create_table',
+      params: {
+        position: [0, 0, 0],
+        title: 'Beam schedule',
+        rows: beams.length,
+        columns: 8,
+        row_height: 500,
+        column_width: 2000,
+        layer: 'BEAM_SCHEDULE',
+        data: [
+          ['Beam ID', 'b×D', 'L (m)', 'Top', 'Bot', 'Stirrups', 'Side-face', 'Status'],
+          ...beams.map(b => [b.id, b.section, b.length, b.top, b.bot, b.stirrups, b.sideFace, b.status]),
+        ],
+      },
+    }),
+  });
+  return r.json();
+}
+```
+
+### CORS
+
+By default the listener allows any origin (`*`) so internal tools work without configuration. **For production deployments, pin to your real origin** by setting an env var before AutoCAD launches:
+
+```bat
+setx AUTOCAD_MCP_HTTP_ORIGINS "https://your-internal-app.example.com"
+```
+
+Multiple origins can be comma-separated. The header `Access-Control-Allow-Private-Network: true` is always sent so Chrome's Private Network Access preflight passes when an HTTPS page calls `127.0.0.1`.
+
+### Disabling the HTTP shim
+
+Set `AUTOCAD_MCP_HTTP_PORT=0` in the user's environment to disable the HTTP listener entirely (TCP on 8081 keeps working for Claude).
 
 ## Uninstall
 
@@ -269,8 +333,10 @@ Or manually delete: `%APPDATA%\Autodesk\ApplicationPlugins\AutoCADMCPPlugin.bund
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `AUTOCAD_MCP_HOST` | `localhost` | Plugin socket host |
-| `AUTOCAD_MCP_PORT` | `8081` | Plugin socket port |
+| `AUTOCAD_MCP_HOST` | `localhost` | Plugin TCP socket host (Python MCP server) |
+| `AUTOCAD_MCP_PORT` | `8081` | Plugin TCP socket port (Python MCP server) |
+| `AUTOCAD_MCP_HTTP_PORT` | `8082` | Plugin HTTP shim port for browser apps. Set to `0` to disable. |
+| `AUTOCAD_MCP_HTTP_ORIGINS` | `*` | Comma-separated CORS allow-list for the HTTP shim. Pin to a specific origin (e.g. `https://pdf.example.com`) in production. |
 
 ## Project Structure
 
@@ -285,11 +351,12 @@ autocad-plugin/
     ├── AutoCADMCPPlugin/          # C# .NET Plugin
     │   ├── AutoCADMCPPlugin.csproj
     │   ├── Core/
-    │   │   ├── Plugin.cs          # IExtensionApplication entry point
-    │   │   ├── SocketServer.cs    # TCP server (JSON-RPC 2.0)
-    │   │   ├── JsonRpcHandler.cs  # Protocol handler
-    │   │   ├── IdleActionRunner.cs# Thread marshaling via Application.Idle
-    │   │   └── CommandRegistry.cs # Auto-discovers ICommand implementations
+    │   │   ├── Plugin.cs            # IExtensionApplication entry point
+    │   │   ├── SocketServer.cs      # TCP server on 8081 (Python MCP / Claude)
+    │   │   ├── HttpListenerServer.cs# HTTP shim on 8082 (browser apps, CORS + PNA)
+    │   │   ├── JsonRpcHandler.cs    # Protocol handler shared by both transports
+    │   │   ├── IdleActionRunner.cs  # Thread marshaling via Application.Idle
+    │   │   └── CommandRegistry.cs   # Auto-discovers ICommand implementations
     │   ├── Commands/
     │   │   ├── EntityCommands.cs          # Line, circle, arc, polyline, rectangle, ellipse, text, hatch
     │   │   ├── EntityModifyCommands.cs    # Move, copy, rotate, scale, mirror, erase

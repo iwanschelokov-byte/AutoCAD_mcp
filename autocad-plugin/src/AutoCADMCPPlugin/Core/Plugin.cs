@@ -13,15 +13,26 @@ namespace AutoCADMCPPlugin.Core
     /// Main entry point for the AutoCAD MCP Plugin.
     /// Implements IExtensionApplication for automatic loading.
     /// Exposes MCPSTART / MCPSTOP commands for manual control.
+    ///
+    /// Two transports are exposed simultaneously:
+    /// - TCP socket on <see cref="DefaultPort"/> (default 8081) for the
+    ///   Python MCP server / Claude integration (newline-delimited JSON-RPC).
+    /// - HTTP loopback on <see cref="DefaultHttpPort"/> (default 8082) for
+    ///   browser apps (POST /jsonrpc, with CORS + Chrome Private-Network-Access).
+    ///
+    /// The HTTP listener is opt-out: set the env var
+    /// <c>AUTOCAD_MCP_HTTP_PORT=0</c> to disable it.
     /// </summary>
     public class Plugin : IExtensionApplication
     {
-        private static SocketServer _server;
+        private static SocketServer _socketServer;
+        private static HttpListenerServer _httpServer;
         private static readonly object _lock = new object();
 
         public const int DefaultPort = 8081;
+        public const int DefaultHttpPort = 8082;
         public const string PluginName = "AutoCAD MCP Plugin";
-        public const string Version = "1.0.0";
+        public const string Version = "1.1.0";
 
         public void Initialize()
         {
@@ -32,7 +43,7 @@ namespace AutoCADMCPPlugin.Core
 
         public void Terminate()
         {
-            StopServer();
+            StopServers();
         }
 
         [CommandMethod("MCPSTART")]
@@ -41,15 +52,17 @@ namespace AutoCADMCPPlugin.Core
             Editor ed = Application.DocumentManager.MdiActiveDocument?.Editor;
             lock (_lock)
             {
-                if (_server != null && _server.IsRunning)
+                if (_socketServer != null && _socketServer.IsRunning)
                 {
-                    ed?.WriteMessage($"\n[MCP] Server already running on port {_server.Port}.");
+                    ed?.WriteMessage(
+                        $"\n[MCP] Server already running on port {_socketServer.Port}.");
                     return;
                 }
 
                 int port = DefaultPort;
 
-                // Allow user to specify a custom port
+                // Allow user to specify a custom TCP port. HTTP port stays
+                // env-driven (most users won't ever change it).
                 PromptIntegerOptions opts = new PromptIntegerOptions("\n[MCP] Enter port number")
                 {
                     DefaultValue = DefaultPort,
@@ -66,13 +79,48 @@ namespace AutoCADMCPPlugin.Core
 
                 try
                 {
-                    _server = new SocketServer(port);
-                    _server.Start();
-                    ed?.WriteMessage($"\n[MCP] Server started on localhost:{port}");
+                    _socketServer = new SocketServer(port);
+                    _socketServer.Start();
+                    ed?.WriteMessage($"\n[MCP] TCP server started on localhost:{port}");
                 }
                 catch (System.Exception ex)
                 {
-                    ed?.WriteMessage($"\n[MCP] Failed to start server: {ex.Message}");
+                    ed?.WriteMessage($"\n[MCP] Failed to start TCP server: {ex.Message}");
+                }
+
+                // Start HTTP shim if not explicitly disabled.
+                int httpPort = ResolveHttpPort();
+                if (httpPort <= 0)
+                {
+                    ed?.WriteMessage(
+                        "\n[MCP] HTTP shim disabled (AUTOCAD_MCP_HTTP_PORT=0).");
+                }
+                else
+                {
+                    string allowedOrigins =
+                        Environment.GetEnvironmentVariable("AUTOCAD_MCP_HTTP_ORIGINS");
+                    try
+                    {
+                        _httpServer = new HttpListenerServer(httpPort, allowedOrigins);
+                        _httpServer.Start();
+                        ed?.WriteMessage(
+                            $"\n[MCP] HTTP shim started on http://127.0.0.1:{httpPort}/jsonrpc");
+                        if (!string.IsNullOrEmpty(allowedOrigins) && allowedOrigins != "*")
+                        {
+                            ed?.WriteMessage(
+                                $"\n[MCP] HTTP allowed origins: {allowedOrigins}");
+                        }
+                        else
+                        {
+                            ed?.WriteMessage(
+                                "\n[MCP] HTTP allowed origins: * (open) — set AUTOCAD_MCP_HTTP_ORIGINS to restrict.");
+                        }
+                    }
+                    catch (System.Exception ex)
+                    {
+                        ed?.WriteMessage(
+                            $"\n[MCP] Failed to start HTTP shim: {ex.Message}");
+                    }
                 }
             }
         }
@@ -83,13 +131,16 @@ namespace AutoCADMCPPlugin.Core
             Editor ed = Application.DocumentManager.MdiActiveDocument?.Editor;
             lock (_lock)
             {
-                if (_server == null || !_server.IsRunning)
+                bool any =
+                    (_socketServer != null && _socketServer.IsRunning) ||
+                    (_httpServer != null && _httpServer.IsRunning);
+                if (!any)
                 {
                     ed?.WriteMessage("\n[MCP] Server is not running.");
                     return;
                 }
 
-                StopServer();
+                StopServers();
                 ed?.WriteMessage("\n[MCP] Server stopped.");
             }
         }
@@ -98,27 +149,57 @@ namespace AutoCADMCPPlugin.Core
         public static void StatusCommand()
         {
             Editor ed = Application.DocumentManager.MdiActiveDocument?.Editor;
-            if (_server != null && _server.IsRunning)
+            if (_socketServer != null && _socketServer.IsRunning)
             {
-                ed?.WriteMessage($"\n[MCP] Server running on localhost:{_server.Port}");
-                ed?.WriteMessage($"\n[MCP] Active connections: {_server.ActiveConnections}");
+                ed?.WriteMessage(
+                    $"\n[MCP] TCP server running on localhost:{_socketServer.Port}");
+                ed?.WriteMessage(
+                    $"\n[MCP] Active TCP connections: {_socketServer.ActiveConnections}");
             }
             else
             {
-                ed?.WriteMessage("\n[MCP] Server is not running.");
+                ed?.WriteMessage("\n[MCP] TCP server is not running.");
+            }
+            if (_httpServer != null && _httpServer.IsRunning)
+            {
+                ed?.WriteMessage(
+                    $"\n[MCP] HTTP shim running on http://127.0.0.1:{_httpServer.Port}/jsonrpc");
+            }
+            else
+            {
+                ed?.WriteMessage("\n[MCP] HTTP shim is not running.");
             }
         }
 
-        private static void StopServer()
+        private static int ResolveHttpPort()
+        {
+            string raw = Environment.GetEnvironmentVariable("AUTOCAD_MCP_HTTP_PORT");
+            if (string.IsNullOrWhiteSpace(raw)) return DefaultHttpPort;
+            if (int.TryParse(raw, out int p)) return p;
+            return DefaultHttpPort;
+        }
+
+        private static void StopServers()
         {
             try
             {
-                _server?.Stop();
-                _server = null;
+                _socketServer?.Stop();
+                _socketServer = null;
             }
             catch (System.Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[MCP] Error stopping server: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine(
+                    $"[MCP] Error stopping TCP server: {ex.Message}");
+            }
+            try
+            {
+                _httpServer?.Stop();
+                _httpServer = null;
+            }
+            catch (System.Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"[MCP] Error stopping HTTP server: {ex.Message}");
             }
         }
     }
