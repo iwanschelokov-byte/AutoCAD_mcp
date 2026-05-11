@@ -151,6 +151,10 @@ namespace AutoCADMCPPlugin.Core
             Register(new ZoomExtentsCommand());
             Register(new ZoomWindowCommand());
 
+            // === Text Measurement ===
+            Register(new MeasureTextCommand());
+            Register(new MeasureTextsCommand());
+
             // === Screenshot ===
             Register(new CaptureScreenshotCommand());
         }
