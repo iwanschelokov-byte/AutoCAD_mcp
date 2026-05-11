@@ -32,7 +32,7 @@ namespace AutoCADMCPPlugin.Core
         public const int DefaultPort = 8081;
         public const int DefaultHttpPort = 8082;
         public const string PluginName = "AutoCAD MCP Plugin";
-        public const string Version = "1.2.0";
+        public const string Version = "1.3.0";
 
         public void Initialize()
         {

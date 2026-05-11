@@ -79,6 +79,12 @@ AutoCAD's .NET API is single-threaded. The plugin uses `Application.Idle` event 
 | `create_block` | Define a new block from geometry |
 | `bulk_create` | Create multiple entities in one call |
 
+### Text Measurement (2)
+| Tool | Description |
+|------|-------------|
+| `measure_text` | Bounding box of one text string at a given height + style. SHX glyphs are proportional, so JS estimates miss; this returns the real width AutoCAD will render. |
+| `measure_texts` | Batched variant — one transaction for up to 2000 strings. Use when sizing many cells before drawing. |
+
 ### Entity Query (8)
 | Tool | Description |
 |------|-------------|
