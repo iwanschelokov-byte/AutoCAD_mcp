@@ -40,7 +40,7 @@ Both transports route through the same `JsonRpcHandler`, so the 71 tools (`creat
 
 AutoCAD's .NET API is single-threaded. The plugin uses `Application.Idle` event + `DocumentLock` to safely execute commands from the socket handler threads on the main thread.
 
-## Features — 71 MCP Tools
+## Features — 73 MCP Tools
 
 ### System (5)
 | Tool | Description |
@@ -381,6 +381,31 @@ async function insertBeamSchedule(beams) {
 
 The hatch's boundary polyline gets the same colour applied so it doesn't flash in a `ByLayer` outline against the fill.
 
+### Sizing tables to real text widths
+
+SHX-font glyphs (Romans, Standard, Romantic, RomanD, Italic, Italicc) are proportional and hand-tuned; a JS pixel approximation diverges noticeably from the real render. Browser callers building tables can ask AutoCAD what the text actually measures before sizing columns:
+
+```js
+const r = await fetch('http://127.0.0.1:8082/jsonrpc', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    jsonrpc: '2.0', id: '1', method: 'measure_texts',
+    params: {
+      items: [
+        { text: 'BEAM',                 height: 225, style: 'Romans' },
+        { text: 'SIZE',                 height: 225, style: 'Romans' },
+        { text: 'BOTTOM REINFORCEMENT', height: 225, style: 'Romans' },
+        { text: 'GB-400x700',           height: 225, style: 'Romans' },
+      ],
+    },
+  }),
+});
+// → { results: [{ text, width, height }, ...] }   widths from real DBText extents
+```
+
+`measure_text` is the single-string variant. Both work by appending a temporary `DBText` probe to model space, reading `GeometricExtents`, and aborting the transaction so the probe never lands in the user's drawing. Batches are capped at 2000 items per call so a runaway client can't pin AutoCAD's main thread.
+
 ### CORS
 
 By default the listener allows any origin (`*`) so internal tools work without configuration. **For production deployments, pin to your real origin** by setting an env var before AutoCAD launches:
@@ -447,13 +472,14 @@ autocad-plugin/
     │   │   ├── SystemVariableCommand.cs   # Get/set system vars, execute command
     │   │   ├── StyleCommands.cs           # Dimension and text styles
     │   │   ├── QueryCommands.cs           # Measure, bounding box, select by window/properties, intersections
+    │   │   ├── MeasureTextCommands.cs     # measure_text / measure_texts — real text bounding boxes
     │   │   ├── SearchCommands.cs          # search_text, find_nearest, measure_between
     │   │   └── ScreenshotCommand.cs       # capture_screenshot (Windows API viewport capture)
     │   └── Models/
     │       ├── ICommand.cs        # Command interface
     │       └── CommandResult.cs   # Result wrapper
     └── mcp_server/                # Python MCP Server
-        ├── server.py              # 71 MCP tools via FastMCP
+        ├── server.py              # 73 MCP tools via FastMCP
         ├── autocad_client.py      # Async TCP client with auto-reconnect
         └── requirements.txt
 ```
