@@ -6,7 +6,7 @@
   AutoCADMCPPlugin.bundle folder to:
     %APPDATA%\Autodesk\ApplicationPlugins\
 
-  Supports AutoCAD 2022-2026.
+  Supports AutoCAD 2022-2027.
 -->
 <ApplicationPackage
   SchemaVersion="1.0"
@@ -19,12 +19,12 @@
 
   <CompanyDetails Name="AutoCAD MCP" />
 
-  <!-- Support AutoCAD 2022 (R24.1) through 2026 (R25.1) -->
+  <!-- Support AutoCAD 2022 (R24.1) through 2027 (R26.0) -->
   <RuntimeRequirements
     OS="Win64"
     Platform="AutoCAD"
     SeriesMin="R24.1"
-    SeriesMax="R25.1" />
+    SeriesMax="R26.0" />
 
   <Components>
 
@@ -48,6 +48,17 @@
       LoadOnAutoCADStartup="True"
       LoadOnCommandInvocation="False">
       <RuntimeRequirements SeriesMin="R25.0" SeriesMax="R25.1" />
+    </ComponentEntry>
+
+    <!-- AutoCAD 2027 (.NET 10) -->
+    <ComponentEntry
+      AppName="AutoCADMCPPlugin_net10"
+      Version="1.0.0"
+      ModuleName="./Contents/net10.0-windows/AutoCADMCPPlugin.dll"
+      AppDescription="AutoCAD MCP Plugin (.NET 10)"
+      LoadOnAutoCADStartup="True"
+      LoadOnCommandInvocation="False">
+      <RuntimeRequirements SeriesMin="R26.0" SeriesMax="R26.0" />
     </ComponentEntry>
 
   </Components>

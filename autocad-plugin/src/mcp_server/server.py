@@ -9,6 +9,8 @@ Architecture:
 """
 
 import os
+import json
+import asyncio
 import logging
 from mcp.server.fastmcp import FastMCP
 from autocad_client import get_client
@@ -26,12 +28,26 @@ mcp = FastMCP("AutoCAD MCP Server")
 # Helper
 # =============================================================================
 
+async def _raw(method: str, params: dict | None = None):
+    """Send a command to AutoCAD and return the decoded result object."""
+    client = await get_client(HOST, PORT)
+    return await client.send_command(method, params)
+
+
 async def _call(method: str, params: dict | None = None) -> str:
     """Send a command to AutoCAD and return the result as formatted text."""
-    client = await get_client(HOST, PORT)
-    result = await client.send_command(method, params)
-    import json
-    return json.dumps(result, indent=2)
+    return json.dumps(await _raw(method, params), indent=2)
+
+
+def _field(result, name):
+    """Read a field from a plugin result, whether or not it is wrapped in 'data'."""
+    if isinstance(result, dict):
+        if name in result:
+            return result[name]
+        data = result.get("data")
+        if isinstance(data, dict):
+            return data.get(name)
+    return None
 
 
 # =============================================================================
@@ -63,9 +79,62 @@ async def get_system_variable(name: str) -> str:
 
 
 @mcp.tool()
-async def execute_command(command: str) -> str:
-    """Execute a raw AutoCAD command string (e.g., 'ZOOM E', 'PURGE'). Use for commands without a dedicated tool."""
-    return await _call("execute_command", {"command": command})
+async def execute_command(
+    command: str,
+    inputs: list[str] | None = None,
+    check: bool = True,
+    wait: float = 0.5,
+) -> str:
+    """Execute a raw AutoCAD command, optionally with all of its interactive inputs.
+
+    The command and every item of `inputs` are joined into ONE space-separated
+    string and sent to AutoCAD in a single call. Interactive / multi-step
+    commands MUST be passed this way (command + all prompt responses together);
+    splitting them across several execute_command calls does not work, because
+    AutoCAD cancels a command that is still awaiting input when the next string
+    is queued.
+
+    The command runs asynchronously, so the send itself cannot report success.
+    With check=True (default) this tool waits `wait` seconds and then reads the
+    command log back, so the answer contains what AutoCAD actually did — an
+    unknown command or a rejected input shows up under "outcome" instead of
+    failing silently. Set check=False for fire-and-forget.
+
+    Examples:
+        execute_command("ZOOM E")
+        execute_command("_.CIRCLE", ["100,100", "40"])
+        execute_command("_.POLYGON", ["6", "400,250", "_I", "60"])
+    """
+    params: dict = {"command": command}
+    if inputs:
+        params["inputs"] = [str(i) for i in inputs]
+
+    sent = await _raw("execute_command", params)
+    if not check:
+        return json.dumps(sent, indent=2)
+
+    since = _field(sent, "since") or 0
+    if wait > 0:
+        await asyncio.sleep(min(wait, 10.0))
+
+    try:
+        outcome = await _raw("read_command_line", {"since": since, "limit": 20})
+    except Exception as exc:  # the plugin may predate read_command_line
+        outcome = {"error": f"could not read command log: {exc}"}
+
+    return json.dumps({"sent": sent, "outcome": outcome}, indent=2)
+
+
+@mcp.tool()
+async def read_command_line(since: int = 0, limit: int = 20) -> str:
+    """Read AutoCAD's recent command activity and the last command-line prompt.
+
+    Pass the "since" value returned by execute_command to see exactly what that
+    call produced: which commands started, ended, failed or were cancelled, plus
+    the last line AutoCAD echoed (where messages like "Unknown command" appear).
+    Call with since=0 for the whole recent history.
+    """
+    return await _call("read_command_line", {"since": since, "limit": limit})
 
 
 # =============================================================================
@@ -79,17 +148,30 @@ async def drawing_new(template: str = "") -> str:
 
 
 @mcp.tool()
-async def drawing_open(path: str) -> str:
-    """Open an existing .dwg file. Provide the full file path."""
-    return await _call("drawing_open", {"path": path})
+async def drawing_open(path: str, read_only: bool = False) -> str:
+    """Open an existing .dwg file and make it the active drawing.
+
+    If the file is already open it is simply activated (AutoCAD cannot open a
+    file it already holds a lock on); the answer then says already_open=true.
+    """
+    return await _call("drawing_open", {"path": path, "read_only": read_only})
 
 
 @mcp.tool()
-async def drawing_save(path: str = "") -> str:
-    """Save the current drawing. Optionally provide a path for Save As."""
+async def drawing_save(path: str = "", mode: str = "copy") -> str:
+    """Save the current drawing.
+
+    With no path: saves in place (QSAVE).
+    With a path, `mode` decides what "save as" means:
+      - "copy" (default): writes the file, but the editing session keeps
+        pointing at the original drawing.
+      - "saveas": switches the editing session to the new file, like the
+        SAVEAS command in the UI.
+    """
     params = {}
     if path:
         params["path"] = path
+        params["mode"] = mode
     return await _call("drawing_save", params)
 
 
@@ -97,6 +179,39 @@ async def drawing_save(path: str = "") -> str:
 async def drawing_info() -> str:
     """Get info about the current drawing: name, path, entity count, layers."""
     return await _call("drawing_info")
+
+
+@mcp.tool()
+async def drawing_list() -> str:
+    """List every drawing currently open in AutoCAD, marking the active one."""
+    return await _call("drawing_list")
+
+
+@mcp.tool()
+async def drawing_close(path: str = "", save: bool = False) -> str:
+    """Close a drawing. Closes the active drawing unless `path` names another one.
+
+    save defaults to False: the drawing is closed and unsaved changes are
+    DISCARDED. Pass save=True to write the file first. Closing is what releases
+    AutoCAD's lock on the .dwg, so do it before another tool needs the file.
+    """
+    params: dict = {"save": save}
+    if path:
+        params["path"] = path
+    return await _call("drawing_close", params)
+
+
+@mcp.tool()
+async def close_all(save: bool = False, keep: str = "") -> str:
+    """Close every open drawing. `keep` optionally names one to leave open.
+
+    save defaults to False — unsaved changes in every closed drawing are
+    DISCARDED.
+    """
+    params: dict = {"save": save}
+    if keep:
+        params["keep"] = keep
+    return await _call("close_all", params)
 
 
 # =============================================================================
@@ -280,12 +395,32 @@ async def bulk_create(entities: list[dict]) -> str:
 async def list_entities(
     layer: str = "",
     type: str = "",
-    limit: int = 500
+    limit: int = 500,
+    offset: int = 0,
+    detailed: bool = False,
+    min_point: list[float] | None = None,
+    max_point: list[float] | None = None,
+    mode: str = "crossing",
 ) -> str:
-    """List entities in model space. Filter by layer name and/or entity type (Line, Circle, etc.)."""
-    params = {"limit": limit}
+    """List entities in model space, with filtering and paging.
+
+    `type` accepts any spelling of the type: "BlockReference",
+    "AcDbBlockReference", "INSERT" or the alias "block" all work, and several
+    can be given comma-separated ("Line,Arc,LWPOLYLINE").
+
+    Supply min_point and max_point to list only a region — "crossing" (default)
+    includes anything the box touches, "window" only what is fully inside.
+
+    The answer carries `total` and `truncated`, so you can tell "that is all of
+    them" from "ask for the next page with offset".
+    """
+    params: dict = {"limit": limit, "offset": offset, "detailed": detailed}
     if layer: params["layer"] = layer
     if type: params["type"] = type
+    if min_point and max_point:
+        params["min_point"] = min_point
+        params["max_point"] = max_point
+        params["mode"] = mode
     return await _call("list_entities", params)
 
 
@@ -293,6 +428,12 @@ async def list_entities(
 async def get_entity(handle: str) -> str:
     """Get detailed info about a specific entity by its handle ID."""
     return await _call("get_entity", {"handle": handle})
+
+
+@mcp.tool()
+async def get_entities(handles: list[str], detailed: bool = True) -> str:
+    """Get info about several entities at once, by handle. One call instead of N."""
+    return await _call("get_entities", {"handles": [str(h) for h in handles], "detailed": detailed})
 
 
 @mcp.tool()
@@ -472,10 +613,34 @@ async def get_bounding_box(handle: str) -> str:
 async def select_by_window(
     min_point: list[float],
     max_point: list[float],
-    limit: int = 500
+    limit: int = 500,
+    mode: str = "window",
+    layer: str = "",
+    type: str = "",
+    offset: int = 0,
+    detailed: bool = False,
 ) -> str:
-    """Find all entities fully inside a rectangular window. Returns handles."""
-    return await _call("select_by_window", {"min_point": min_point, "max_point": max_point, "limit": limit})
+    """Find entities in a rectangular region.
+
+    mode="window" (default) returns only entities fully inside the box;
+    mode="crossing" also returns anything the box touches — use it when picking
+    a title block or a sheet region, whose entities stick out past the frame.
+
+    Optional layer/type filters narrow the result; `type` accepts "INSERT",
+    "AcDbBlockReference", "BlockReference" or "block" alike. The answer carries
+    `total` and `truncated` so a cut-off list is never mistaken for a complete one.
+    """
+    params: dict = {
+        "min_point": min_point,
+        "max_point": max_point,
+        "limit": limit,
+        "offset": offset,
+        "mode": mode,
+        "detailed": detailed,
+    }
+    if layer: params["layer"] = layer
+    if type: params["type"] = type
+    return await _call("select_by_window", params)
 
 
 @mcp.tool()
@@ -484,14 +649,25 @@ async def select_by_properties(
     type: str = "",
     color: int = -1,
     linetype: str = "",
-    limit: int = 500
+    limit: int = 500,
+    offset: int = 0,
+    detailed: bool = False,
+    block_name: str = "",
 ) -> str:
-    """Find entities matching property filters (AND logic). Returns handles with basic info."""
-    params: dict = {"limit": limit}
+    """Find entities matching property filters (AND logic).
+
+    `type` accepts the .NET name ("BlockReference"), the AutoCAD class name
+    ("AcDbBlockReference"), the DXF name ("INSERT") or an alias ("block",
+    "text", "anytext", "pline", "dimension", "curve"), and a comma-separated
+    list of any of those. `block_name` further restricts block references to
+    one block definition.
+    """
+    params: dict = {"limit": limit, "offset": offset, "detailed": detailed}
     if layer: params["layer"] = layer
     if type: params["type"] = type
     if color >= 0: params["color"] = color
     if linetype: params["linetype"] = linetype
+    if block_name: params["block_name"] = block_name
     return await _call("select_by_properties", params)
 
 

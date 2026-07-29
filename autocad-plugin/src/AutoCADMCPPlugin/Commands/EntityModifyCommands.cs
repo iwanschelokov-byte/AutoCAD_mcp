@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Newtonsoft.Json.Linq;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
@@ -25,9 +26,30 @@ namespace AutoCADMCPPlugin.Commands
             string filterLayer = parameters?["layer"]?.ToString();
             string filterType = parameters?["type"]?.ToString();
             int limit = parameters?["limit"]?.Value<int>() ?? 500;
+            int offset = parameters?["offset"]?.Value<int>() ?? 0;
+            bool detailed = parameters?["detailed"]?.Value<bool>() ?? false;
+
+            // Optional spatial filter. Supplying both points restricts the
+            // listing to a region, so a drawing with tens of thousands of
+            // entities can be read one sheet at a time instead of being
+            // truncated at an arbitrary limit.
+            bool hasWindow = parameters?["min_point"] != null && parameters?["max_point"] != null;
+            double winMinX = 0, winMinY = 0, winMaxX = 0, winMaxY = 0;
+            string mode = (parameters?["mode"]?.ToString() ?? "crossing").Trim().ToLowerInvariant();
+            if (hasWindow)
+            {
+                if (mode != "window" && mode != "crossing")
+                    return CommandResult.Fail($"Unknown mode '{mode}'. Use \"window\" (fully inside) or \"crossing\" (touching).");
+                Point3d a = EntityHelper.ParsePoint(parameters["min_point"], "min_point");
+                Point3d b = EntityHelper.ParsePoint(parameters["max_point"], "max_point");
+                winMinX = Math.Min(a.X, b.X); winMinY = Math.Min(a.Y, b.Y);
+                winMaxX = Math.Max(a.X, b.X); winMaxY = Math.Max(a.Y, b.Y);
+            }
 
             Database db = doc.Database;
             JArray entities = new JArray();
+            int total = 0;
+            var byType = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
@@ -35,61 +57,148 @@ namespace AutoCADMCPPlugin.Commands
                 BlockTableRecord modelSpace = (BlockTableRecord)tr.GetObject(
                     bt[BlockTableRecord.ModelSpace], OpenMode.ForRead);
 
-                int count = 0;
                 foreach (ObjectId id in modelSpace)
                 {
-                    if (count >= limit) break;
-
                     Entity ent = tr.GetObject(id, OpenMode.ForRead) as Entity;
                     if (ent == null) continue;
 
-                    // Apply filters
                     if (!string.IsNullOrEmpty(filterLayer) &&
                         !ent.Layer.Equals(filterLayer, StringComparison.OrdinalIgnoreCase))
                         continue;
-
-                    string typeName = ent.GetType().Name;
-                    if (!string.IsNullOrEmpty(filterType) &&
-                        !typeName.Equals(filterType, StringComparison.OrdinalIgnoreCase))
+                    if (!EntityInfo.TypeMatches(ent, filterType))
                         continue;
 
-                    var entJson = new JObject
+                    if (hasWindow)
                     {
-                        ["handle"] = id.Handle.Value.ToString(),
-                        ["type"] = typeName,
-                        ["layer"] = ent.Layer,
-                        ["color"] = ent.ColorIndex
-                    };
-
-                    // Add geometry info for common types
-                    if (ent is Line line)
-                    {
-                        entJson["start"] = new JArray(line.StartPoint.X, line.StartPoint.Y, line.StartPoint.Z);
-                        entJson["end"] = new JArray(line.EndPoint.X, line.EndPoint.Y, line.EndPoint.Z);
-                    }
-                    else if (ent is Circle circle)
-                    {
-                        entJson["center"] = new JArray(circle.Center.X, circle.Center.Y, circle.Center.Z);
-                        entJson["radius"] = circle.Radius;
-                    }
-                    else if (ent is DBText text)
-                    {
-                        entJson["text"] = text.TextString;
-                        entJson["position"] = new JArray(text.Position.X, text.Position.Y, text.Position.Z);
+                        if (!EntityInfo.TryExtents(ent, out Extents3d ext)) continue;
+                        bool hit = mode == "window"
+                            ? EntityInfo.Inside(ext, winMinX, winMinY, winMaxX, winMaxY)
+                            : EntityInfo.Crosses(ext, winMinX, winMinY, winMaxX, winMaxY);
+                        if (!hit) continue;
                     }
 
-                    entities.Add(entJson);
-                    count++;
+                    total++;
+                    string typeName = ent.GetType().Name;
+                    byType.TryGetValue(typeName, out int n);
+                    byType[typeName] = n + 1;
+
+                    if (total <= offset) continue;
+                    if (entities.Count < limit)
+                        entities.Add(EntityInfo.Summarize(tr, id, ent, detailed));
                 }
 
                 tr.Commit();
             }
 
-            return CommandResult.Ok(new JObject
+            var counts = new JObject();
+            foreach (var kv in byType) counts[kv.Key] = kv.Value;
+
+            var result = new JObject
             {
                 ["entities"] = entities,
-                ["count"] = entities.Count
-            });
+                ["count"] = entities.Count,
+                ["total"] = total,
+                ["offset"] = offset,
+                // Explicit, so a caller can tell "that is all of them" from
+                // "there are more, ask for the next page".
+                ["truncated"] = total > offset + entities.Count,
+                ["by_type"] = counts
+            };
+            if (hasWindow) result["mode"] = mode;
+            return CommandResult.Ok(result);
+        }
+    }
+
+    /// <summary>
+    /// Read several entities in one call. Reading a selection of 40 handles used
+    /// to mean 40 round trips through get_entity.
+    /// </summary>
+    public class GetEntitiesCommand : ICommand
+    {
+        public string MethodName => "get_entities";
+
+        public CommandResult Execute(JObject parameters)
+        {
+            Document doc = Application.DocumentManager.MdiActiveDocument;
+            if (doc == null) return CommandResult.Fail("No active document");
+
+            JToken handlesToken = parameters?["handles"];
+            if (handlesToken == null)
+                return CommandResult.Fail("Parameter 'handles' is required (array of handle strings)");
+
+            var handles = new List<string>();
+            if (handlesToken is JArray arr)
+            {
+                foreach (JToken t in arr)
+                {
+                    string s = t?.ToString();
+                    if (!string.IsNullOrWhiteSpace(s)) handles.Add(s.Trim());
+                }
+            }
+            else
+            {
+                foreach (string s in handlesToken.ToString().Split(','))
+                    if (!string.IsNullOrWhiteSpace(s)) handles.Add(s.Trim());
+            }
+
+            if (handles.Count == 0)
+                return CommandResult.Fail("Parameter 'handles' is empty");
+
+            bool detailed = parameters?["detailed"]?.Value<bool>() ?? true;
+
+            Database db = doc.Database;
+            var found = new JArray();
+            var notFound = new JArray();
+
+            using (Transaction tr = db.TransactionManager.StartTransaction())
+            {
+                foreach (string handle in handles)
+                {
+                    if (!TryResolve(db, handle, out ObjectId id)) { notFound.Add(handle); continue; }
+
+                    Entity ent = tr.GetObject(id, OpenMode.ForRead) as Entity;
+                    if (ent == null) { notFound.Add(handle); continue; }
+
+                    found.Add(EntityInfo.Summarize(tr, id, ent, detailed));
+                }
+                tr.Commit();
+            }
+
+            var result = new JObject
+            {
+                ["entities"] = found,
+                ["count"] = found.Count,
+                ["requested"] = handles.Count
+            };
+            if (notFound.Count > 0) result["not_found"] = notFound;
+            return CommandResult.Ok(result);
+        }
+
+        /// <summary>
+        /// Resolve a handle string. The plugin emits handles as decimal (that is
+        /// what Handle.Value.ToString() produces), but AutoCAD's own UI shows
+        /// them in hex, so accept either rather than failing on a handle the
+        /// user copied out of the properties palette.
+        /// </summary>
+        private static bool TryResolve(Database db, string handle, out ObjectId id)
+        {
+            id = ObjectId.Null;
+
+            try
+            {
+                if (db.TryGetObjectId(new Handle(Convert.ToInt64(handle)), out id) && !id.IsNull)
+                    return true;
+            }
+            catch { }
+
+            try
+            {
+                if (db.TryGetObjectId(new Handle(Convert.ToInt64(handle, 16)), out id) && !id.IsNull)
+                    return true;
+            }
+            catch { }
+
+            return false;
         }
     }
 
@@ -126,70 +235,9 @@ namespace AutoCADMCPPlugin.Commands
                 if (ent == null)
                     return CommandResult.Fail($"Object with handle {handle} is not an entity");
 
-                var result = new JObject
-                {
-                    ["handle"] = handle,
-                    ["type"] = ent.GetType().Name,
-                    ["layer"] = ent.Layer,
-                    ["color"] = ent.ColorIndex,
-                    ["linetype"] = ent.Linetype,
-                    ["visible"] = ent.Visible
-                };
-
-                // Detailed geometry by type
-                if (ent is Line line)
-                {
-                    result["start"] = new JArray(line.StartPoint.X, line.StartPoint.Y, line.StartPoint.Z);
-                    result["end"] = new JArray(line.EndPoint.X, line.EndPoint.Y, line.EndPoint.Z);
-                    result["length"] = line.Length;
-                }
-                else if (ent is Circle circle)
-                {
-                    result["center"] = new JArray(circle.Center.X, circle.Center.Y, circle.Center.Z);
-                    result["radius"] = circle.Radius;
-                    result["area"] = circle.Area;
-                }
-                else if (ent is Arc arc)
-                {
-                    result["center"] = new JArray(arc.Center.X, arc.Center.Y, arc.Center.Z);
-                    result["radius"] = arc.Radius;
-                    result["start_angle"] = arc.StartAngle * 180.0 / Math.PI;
-                    result["end_angle"] = arc.EndAngle * 180.0 / Math.PI;
-                }
-                else if (ent is Polyline pline)
-                {
-                    result["vertex_count"] = pline.NumberOfVertices;
-                    result["closed"] = pline.Closed;
-                    result["length"] = pline.Length;
-                    var verts = new JArray();
-                    for (int i = 0; i < pline.NumberOfVertices; i++)
-                    {
-                        Point2d pt = pline.GetPoint2dAt(i);
-                        verts.Add(new JArray(pt.X, pt.Y));
-                    }
-                    result["vertices"] = verts;
-                }
-                else if (ent is DBText text)
-                {
-                    result["text"] = text.TextString;
-                    result["position"] = new JArray(text.Position.X, text.Position.Y, text.Position.Z);
-                    result["height"] = text.Height;
-                    result["rotation"] = text.Rotation * 180.0 / Math.PI;
-                }
-                else if (ent is MText mtext)
-                {
-                    result["text"] = mtext.Contents;
-                    result["position"] = new JArray(mtext.Location.X, mtext.Location.Y, mtext.Location.Z);
-                    result["height"] = mtext.TextHeight;
-                }
-                else if (ent is BlockReference blkRef)
-                {
-                    result["block_name"] = blkRef.Name;
-                    result["position"] = new JArray(blkRef.Position.X, blkRef.Position.Y, blkRef.Position.Z);
-                    result["rotation"] = blkRef.Rotation * 180.0 / Math.PI;
-                    result["scale_x"] = blkRef.ScaleFactors.X;
-                    result["scale_y"] = blkRef.ScaleFactors.Y;
-                }
+                // Same description used by list_entities / select_by_* so that a
+                // handle looks identical wherever it turns up.
+                JObject result = EntityInfo.Summarize(tr, id, ent, true);
 
                 tr.Commit();
                 return CommandResult.Ok(result);

@@ -220,7 +220,11 @@ namespace AutoCADMCPPlugin.Commands
 
                 BlockTableRecord btr = new BlockTableRecord();
                 btr.Name = name;
-                btr.Origin = basePt;
+                // Origin MUST stay at (0,0,0): the cloned geometry below is
+                // already translated by -basePt, so the base point is baked
+                // into the definition. Setting btr.Origin = basePt as well
+                // applies the base point a second time and every insert lands
+                // at (insertion point - basePt) instead of the insertion point.
                 ObjectId blockId = bt.Add(btr);
                 tr.AddNewlyCreatedDBObject(btr, true);
 
@@ -249,6 +253,7 @@ namespace AutoCADMCPPlugin.Commands
                 {
                     ["name"] = name,
                     ["entity_count"] = entityCount,
+                    ["base_point"] = new JArray(basePt.X, basePt.Y, basePt.Z),
                     ["message"] = $"Block '{name}' created with {entityCount} entities"
                 });
             }

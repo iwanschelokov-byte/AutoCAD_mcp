@@ -32,17 +32,36 @@ namespace AutoCADMCPPlugin.Core
         public const int DefaultPort = 8081;
         public const int DefaultHttpPort = 8082;
         public const string PluginName = "AutoCAD MCP Plugin";
+
+        // Upstream feature version.
         public const string Version = "1.3.0";
+
+        // Custom build tag for this fork. Bump this when you rebuild your own
+        // version so `system_status` and the load message identify it clearly.
+        // This build adds AutoCAD 2027 (.NET 10 / R26.0) support, an optional
+        // "inputs" array for execute_command (interactive command + all of its
+        // prompt responses sent as one string), document close/list commands,
+        // command-line diagnostics (read_command_line), crossing selection,
+        // robust entity type matching and paged entity listings. It also fixes
+        // create_block applying the base point twice (inserts landed at
+        // "insertion point - base point").
+        public const string Build = "2027.4-custom";
 
         public void Initialize()
         {
+            // Start recording command activity immediately: execute_command is
+            // asynchronous, so this log is the only way to report back what a
+            // queued command actually did.
+            CommandTracker.Install();
+
             Editor ed = Application.DocumentManager.MdiActiveDocument?.Editor;
-            ed?.WriteMessage($"\n[MCP] {PluginName} v{Version} loaded.");
+            ed?.WriteMessage($"\n[MCP] {PluginName} v{Version} (build {Build}) loaded.");
             ed?.WriteMessage("\n[MCP] Use MCPSTART to start the server, MCPSTOP to stop it.");
         }
 
         public void Terminate()
         {
+            CommandTracker.Uninstall();
             StopServers();
         }
 
