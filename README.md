@@ -31,38 +31,43 @@ AI-powered AutoCAD automation via the **Model Context Protocol (MCP)**. Enables 
 
 The C# plugin loads inside AutoCAD as an addin and exposes the same JSON-RPC pipeline over **two transports** simultaneously:
 
-1. **TCP socket on `localhost:8081`** — used by the Python MCP server, which marshals 71 tools over stdio for Claude / Claude Code / Claude Desktop.
+1. **TCP socket on `localhost:8081`** — used by the Python MCP server, which marshals 79 tools over stdio for Claude / Claude Code / Claude Desktop.
 2. **HTTP loopback on `localhost:8082`** — used by browser apps that can't open raw TCP sockets (a `fetch()` call to `http://127.0.0.1:8082/jsonrpc` reaches every command in the registry, with CORS headers + Chrome Private-Network-Access support out of the box).
 
-Both transports route through the same `JsonRpcHandler`, so the 71 tools (`create_line`, `create_table`, `capture_screenshot`, …) are reachable identically from either path. Commands are marshaled to AutoCAD's main UI thread via `Application.Idle` + `DocumentLock`.
+Both transports route through the same `JsonRpcHandler`, so every command in the registry (`create_line`, `create_table`, `capture_screenshot`, …) is reachable identically from either path. Commands are marshaled to AutoCAD's main UI thread via `Application.Idle` + `DocumentLock`.
 
 ### Thread Safety
 
 AutoCAD's .NET API is single-threaded. The plugin uses `Application.Idle` event + `DocumentLock` to safely execute commands from the socket handler threads on the main thread.
 
-## Features — 73 MCP Tools
+## Features — 79 MCP Tools
 
-### System (5)
+### System (6)
 | Tool | Description |
 |------|-------------|
-| `system_status` | Plugin version, AutoCAD version, active document |
+| `system_status` | Plugin version, build tag, AutoCAD version, active document |
 | `list_methods` | All available commands |
 | `set_system_variable` | Set AutoCAD system variables (DIMTXT, LTSCALE, etc.) |
 | `get_system_variable` | Read system variable values |
 | `execute_command` | Run raw AutoCAD command strings |
+| `read_command_line` | Read back what the command line printed. `execute_command` is queued and asynchronous, so this is the only way to see what a queued command actually did |
 
-### Drawing Management (7)
+### Drawing Management (11)
 | Tool | Description |
 |------|-------------|
 | `drawing_new` | Create new drawing (optional template) |
 | `drawing_open` | Open existing .dwg file |
 | `drawing_save` | Save / Save As |
+| `drawing_close` | Close a drawing, optionally discarding unsaved changes; reports whether anything was actually discarded |
+| `drawing_list` | Every open drawing, which one is active, and which have unsaved changes |
+| `close_all` | Close every open drawing |
 | `drawing_info` | Entity count, layers, file path |
 | `set_units` | Set linear and angular units |
 | `purge_drawing` | Remove unused blocks, layers, styles |
-| `plot_to_pdf` | Plot current layout to PDF |
+| `plot_devices` | Plot devices, plot style tables, and a device's paper sizes with printable areas and margins, by canonical name |
+| `plot_to_pdf` | Plot a layout or a model-space window to PDF, with the paper size chosen automatically |
 
-### Entity Creation (14)
+### Entity Creation (12)
 | Tool | Description |
 |------|-------------|
 | `create_line` | Line from start to end point |
@@ -76,20 +81,14 @@ AutoCAD's .NET API is single-threaded. The plugin uses `Application.Idle` event 
 | `create_hatch` | Hatch with boundary, pattern, ACI colour, and optional true RGB |
 | `create_spline` | Smooth spline curve through points |
 | `create_table` | Table with rows, columns, and cell data |
-| `create_block` | Define a new block from geometry |
-| `bulk_create` | Create multiple entities in one call |
+| `create_table_from_excel` | Table built from a sheet in an `.xlsx` file (requires `openpyxl`) |
 
-### Text Measurement (2)
-| Tool | Description |
-|------|-------------|
-| `measure_text` | Bounding box of one text string at a given height + style. SHX glyphs are proportional, so JS estimates miss; this returns the real width AutoCAD will render. |
-| `measure_texts` | Batched variant — one transaction for up to 2000 strings. Use when sizing many cells before drawing. |
-
-### Entity Query (8)
+### Entity Query (9)
 | Tool | Description |
 |------|-------------|
 | `list_entities` | List entities with layer/type filters |
 | `get_entity` | Detailed entity info by handle |
+| `get_entities` | Detailed info for several handles in one transaction |
 | `select_by_properties` | Filter entities by layer, type, color |
 | `select_by_window` | Find entities within a rectangular area |
 | `get_bounding_box` | Get entity extents (min/max points, width, height) |
@@ -129,12 +128,13 @@ AutoCAD's .NET API is single-threaded. The plugin uses `Application.Idle` event 
 | `delete_layer` | Remove a layer |
 | `rename_layer` | Rename a layer |
 
-### Blocks (3)
+### Blocks (4)
 | Tool | Description |
 |------|-------------|
 | `list_blocks` | Block definitions with attributes |
 | `insert_block` | Insert with position/rotation/scale/attributes |
 | `create_block` | Define a new block from geometry |
+| `import_block` | Import a block definition from another .dwg |
 
 ### Annotations (7)
 | Tool | Description |
@@ -173,23 +173,40 @@ AutoCAD's .NET API is single-threaded. The plugin uses `Application.Idle` event 
 | `find_nearest` | Find entities nearest to a point (by type/layer, sorted by distance) |
 | `measure_between` | Measure distance between two entities by handle |
 
+## Two Extra Commands, JSON-RPC Only
+
+The plugin's command registry holds **80** commands — the 79 MCP tools above plus two text-measurement
+commands that are reachable over TCP/JSON-RPC and the HTTP shim but are deliberately not wrapped as MCP
+tools, because they exist to size tables before drawing them and are of little use to a chat client. This
+is why `list_methods` returns 80 while the MCP server exposes 79.
+
+| Command | Description |
+|---------|-------------|
+| `measure_text` | Bounding box of one text string at a given height + style. SHX glyphs are proportional, so JS estimates miss; this returns the real width AutoCAD will render. |
+| `measure_texts` | Batched variant — one transaction for up to 2000 strings. Use when sizing many cells before drawing. |
+
+See [Sizing tables to real text widths](#sizing-tables-to-real-text-widths) for a worked example.
+
 ## Supported AutoCAD Versions
 
 | AutoCAD Version | .NET Target | NuGet Package Version |
 |----------------|-------------|----------------------|
 | **2022, 2023, 2024** | .NET Framework 4.8 (`net48`) | AutoCAD.NET 24.2.x |
 | **2025, 2026** | .NET 8 (`net8.0-windows`) | AutoCAD.NET 25.x |
+| **2027** | .NET 10 (`net10.0-windows`) | AutoCAD.NET 26.0.0 |
 
-Both targets are built simultaneously. The bundle manifest auto-selects the correct DLL.
+The `net48` and `net8.0-windows` targets are always built. The 2027 target compiles against the `Newtonsoft.Json` that ships inside AutoCAD 2027 — so that the compile-time and run-time signatures match — and is therefore added only when AutoCAD 2027 is present on the build machine; elsewhere the build produces the two older targets instead of failing on a reference it cannot resolve. Point it at a non-default install with `dotnet build ... -p:AutoCADPath2027="D:\...\AutoCAD 2027"`.
+
+The bundle manifest auto-selects the correct DLL by AutoCAD release series (`R24.1`–`R26.0`).
 
 ## Installation
 
 ### Prerequisites
 
-- **AutoCAD 2022–2026** (any edition including LT with .NET support)
+- **AutoCAD 2022–2027** (any edition including LT with .NET support)
 - **Python 3.10+** (for MCP server)
 - **Windows** (AutoCAD is Windows-only)
-- **.NET SDK 8.0+** (only if building from source)
+- **.NET SDK 8.0+** (only if building from source; **SDK 10.0** is needed for the AutoCAD 2027 target)
 
 ### Option A: Install Pre-built Plugin (No Build Tools Needed)
 
@@ -202,6 +219,8 @@ install-prebuilt.bat
 
 This copies the pre-built DLLs from `dist/` to `%APPDATA%\Autodesk\ApplicationPlugins\` and AutoCAD will load the plugin automatically on startup.
 
+> **AutoCAD 2027:** `dist/` currently ships `net48` and `net8.0-windows` only. The script says so plainly and skips the 2027 folder; for 2027 use Option B and build from source.
+
 ### Option B: Build from Source
 
 If you have .NET SDK installed:
@@ -211,7 +230,9 @@ cd autocad-plugin
 install.bat
 ```
 
-This builds both .NET targets, copies the DLLs to `%APPDATA%\Autodesk\ApplicationPlugins\AutoCADMCPPlugin.bundle\`, and AutoCAD will load it automatically on startup.
+This builds every target available on the machine, copies the DLLs to `%APPDATA%\Autodesk\ApplicationPlugins\AutoCADMCPPlugin.bundle\`, checks that each framework folder actually received its DLL, and AutoCAD will load the plugin automatically on startup. The closing summary says whether the AutoCAD 2027 folder was populated or skipped.
+
+Both installers finish by checking whether `mcp`, `openpyxl` and `pikepdf` are importable and offering to install them for you; Step 3 below is that same `pip install` by hand. The check never installs anything without being asked, and skips itself if Python is not on `PATH`.
 
 ### Option C: Manual Install (Copy & Paste)
 
@@ -239,6 +260,8 @@ If the scripts don't work, you can install manually:
                        └── Newtonsoft.Json.dll
    ```
    > For AutoCAD 2025–2026, also copy `dist/net8.0-windows/` into `Contents\net8.0-windows\`.
+   >
+   > For AutoCAD 2027, the folder must be `Contents\net10.0-windows\` and needs `AutoCADMCPPlugin.dll`, `System.Drawing.Common.dll`, `Microsoft.Win32.SystemEvents.dll` and `System.Private.Windows.Core.dll` from `bin/Release/net10.0-windows/`. Do **not** copy `Newtonsoft.Json.dll` there — AutoCAD 2027 ships its own and a second copy in the bundle can shadow it.
 
 4. Open AutoCAD — the plugin loads automatically.
 
@@ -259,6 +282,8 @@ Other commands:
 cd autocad-plugin/src/mcp_server
 pip install -r requirements.txt
 ```
+
+This pulls in `mcp`, `openpyxl` (for `create_table_from_excel`) and `pikepdf` (used by `plot_to_pdf` to crop the finished page down to the plotted window — see [Plotting to PDF](#plotting-to-pdf)). Only `mcp` is strictly required; the other two disable one feature each if absent.
 
 ### Step 4: Configure Your MCP Client
 
@@ -320,9 +345,21 @@ curl -s -X POST http://127.0.0.1:8082/jsonrpc \
 
 `MCPSTATUS` will report both transports as running.
 
+## Plotting to PDF
+
+`plot_to_pdf` plots either a named layout or a rectangular window of model space through AutoCAD's own publishing engine, so what lands in the PDF is what the plot preview would have shown — plot styles, lineweights and all.
+
+Paper size is the part that usually surprises people. AutoCAD can only plot onto a sheet the plot device actually defines, and those sheets are addressed by *canonical* media names such as `ISO_full_bleed_A1_(841.00_x_594.00_MM)`, not by the localised strings the Plot dialog shows. `plot_devices` lists what a device offers: call it with no arguments to get the plot devices and plot style tables installed on the machine plus the paper sizes of the default PDF driver, or pass `device` (`plotter` is accepted as a synonym, because some MCP hosts consume an argument literally named `device` before the tool ever sees it) together with an optional `filter` substring to narrow a long list. Every entry comes back with its printable area and margins, so a caller can tell a full-bleed sheet from one with a 5 mm border before choosing.
+
+Leaving `paper` at its default of `auto` skips all of that: the command measures the window being plotted and picks the smallest defined sheet that contains it, preferring the orientation that needs no rotation when a sheet exists in both. Because the smallest sheet that *contains* a window is rarely the same size as the window, the finished page is then cropped down to the plotted extents and the surplus removed, and the answer reports `trimmed`, `trimmed_size_mm` and the `trim_box_mm` that was applied. Pass `trim: false` to keep the driver's page exactly as it came out.
+
+Trimming is done in the Python MCP server with [pikepdf](https://pypi.org/project/pikepdf/), which `requirements.txt` installs. It is not required for plotting: without it the plot still succeeds and the answer simply reports `trimmed: false` with a `trim_error` naming the missing package. The crop is measured from the real `MediaBox` of the file AutoCAD produced rather than from the nominal sheet dimensions, because `DWG To PDF.pc3` quantises its page at roughly 0.042 mm per unit and a nominal 841 × 594 mm sheet arrives as 841.022 × 594.078 mm.
+
+One prerequisite applies to both commands: a drawing has to be open. Plot devices, style tables and paper sizes are all read through `PlotSettingsValidator.Current`, which is current *for the active document*, so with no drawing open there is nothing to read them from. Both commands check for an active document before touching the plot API and return a plain error explaining what to do.
+
 ## Calling from a Browser / Web App
 
-The HTTP shim makes the full 71-tool surface reachable from any browser-based internal tool — no MCP client, no Claude in the loop, no per-engineer license. Engineers run the plugin once (`MCPSTART` in AutoCAD), and your web app calls `localhost:8082` directly.
+The HTTP shim makes the plugin's full 80-command surface reachable from any browser-based internal tool — no MCP client, no Claude in the loop, no per-engineer license. Engineers run the plugin once (`MCPSTART` in AutoCAD), and your web app calls `localhost:8082` directly.
 
 ### Quick example: insert a table
 
@@ -442,7 +479,8 @@ Or manually delete: `%APPDATA%\Autodesk\ApplicationPlugins\AutoCADMCPPlugin.bund
 
 ```
 autocad-plugin/
-├── install.bat                    # Build + deploy to ApplicationPlugins
+├── install.bat                    # Build all targets + deploy to ApplicationPlugins
+├── install-prebuilt.bat           # Deploy the DLLs from dist/ without building
 ├── uninstall.bat                  # Remove from ApplicationPlugins
 ├── config/
 │   └── AutoCADMCPPlugin.bundle/
@@ -479,7 +517,7 @@ autocad-plugin/
     │       ├── ICommand.cs        # Command interface
     │       └── CommandResult.cs   # Result wrapper
     └── mcp_server/                # Python MCP Server
-        ├── server.py              # 73 MCP tools via FastMCP
+        ├── server.py              # 79 MCP tools via FastMCP
         ├── autocad_client.py      # Async TCP client with auto-reconnect
         └── requirements.txt
 ```

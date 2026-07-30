@@ -8,6 +8,81 @@ using Autodesk.AutoCAD.Runtime;
 namespace AutoCADMCPPlugin.Commands
 {
     /// <summary>
+    /// Shared conversion between the JSON <c>handle</c> field and an
+    /// <see cref="ObjectId"/>.
+    ///
+    /// This used to be <c>id.Handle.Value.ToString()</c>, which prints the
+    /// handle as a decimal number ("9941366"). Nothing else in AutoCAD speaks
+    /// that dialect: the properties palette, DXF group 5, the LIST command and
+    /// AutoLISP's <c>handent</c> all use hexadecimal ("97B176"), so a handle
+    /// taken out of an MCP selection could not be fed to a LISP script or
+    /// looked up by hand — <c>(handent "9941366")</c> simply returns nil.
+    ///
+    /// Emission is therefore hexadecimal everywhere. Parsing stays lenient:
+    /// hex first, then decimal, so handles captured by older callers keep
+    /// working. Resolution is always against the database, which is what makes
+    /// the two-base guess safe — a string that parses in both bases is only
+    /// accepted in the base that actually names an object.
+    /// </summary>
+    internal static class Handles
+    {
+        /// <summary>Handle of an id as AutoCAD itself spells it (hex).</summary>
+        public static string Format(ObjectId id)
+        {
+            try { return id.Handle.ToString(); }
+            catch { return ""; }
+        }
+
+        /// <summary>Handle of an entity as AutoCAD itself spells it (hex).</summary>
+        public static string Format(DBObject obj)
+        {
+            try { return obj.Handle.ToString(); }
+            catch { return ""; }
+        }
+
+        /// <summary>
+        /// Find the object named by <paramref name="text"/>. Hexadecimal is
+        /// tried first (what this plugin now emits and what AutoCAD shows),
+        /// decimal second (what this plugin emitted before).
+        /// </summary>
+        public static bool TryResolve(Database db, string text, out ObjectId id)
+        {
+            id = ObjectId.Null;
+            if (db == null || string.IsNullOrWhiteSpace(text)) return false;
+
+            string s = text.Trim();
+            if (s.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) s = s.Substring(2);
+
+            foreach (int radix in new[] { 16, 10 })
+            {
+                try
+                {
+                    long value = Convert.ToInt64(s, radix);
+                    if (value <= 0) continue;
+                    if (db.TryGetObjectId(new Handle(value), out id) && !id.IsNull)
+                        return true;
+                }
+                catch { }
+            }
+
+            id = ObjectId.Null;
+            return false;
+        }
+
+        /// <summary>
+        /// <see cref="TryResolve"/> plus the standard error text, so every
+        /// command reports an unknown handle the same way.
+        /// </summary>
+        public static ObjectId Resolve(Database db, string text, out string error)
+        {
+            if (Handles.TryResolve(db, text, out ObjectId id)) { error = null; return id; }
+            error = $"No entity with handle '{text}'. Handles are hexadecimal, as shown " +
+                    "in the properties palette; decimal is still accepted for compatibility.";
+            return ObjectId.Null;
+        }
+    }
+
+    /// <summary>
     /// Shared helpers for describing and filtering entities.
     ///
     /// Historically every query command compared <c>ent.GetType().Name</c> to the
@@ -153,7 +228,7 @@ namespace AutoCADMCPPlugin.Commands
         {
             var o = new JObject
             {
-                ["handle"] = id.Handle.Value.ToString(),
+                ["handle"] = Handles.Format(id),
                 ["type"] = ent.GetType().Name,
                 ["dxf_type"] = DxfName(ent),
                 ["layer"] = ent.Layer,

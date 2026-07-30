@@ -150,7 +150,10 @@ namespace AutoCADMCPPlugin.Core
             // === Drawing Utilities (Sprint 4) ===
             Register(new PurgeDrawingCommand());
             Register(new SetUnitsCommand());
+
+            // === Plotting ===
             Register(new PlotToPdfCommand());
+            Register(new PlotDevicesCommand());
 
             // === View ===
             Register(new ZoomExtentsCommand());

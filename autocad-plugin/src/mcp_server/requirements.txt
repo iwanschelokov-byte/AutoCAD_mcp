@@ -1,2 +1,8 @@
 mcp[cli]>=1.2.1,<2.0
 openpyxl>=3.1.0
+# plot_to_pdf crops the finished page down to the plotted window. AutoCAD can
+# only plot onto a paper size the driver defines, so a non-standard sheet is
+# plotted centred on the nearest larger one and the surplus removed here.
+# Without pikepdf the plot still succeeds; the answer just reports
+# trimmed: false with a trim_error saying the package is missing.
+pikepdf>=8.0

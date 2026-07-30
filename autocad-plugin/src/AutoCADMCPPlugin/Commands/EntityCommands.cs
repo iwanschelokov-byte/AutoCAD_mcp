@@ -90,7 +90,7 @@ namespace AutoCADMCPPlugin.Commands
         {
             return new JObject
             {
-                ["id"] = id.Handle.Value.ToString(),
+                ["id"] = Handles.Format(id),
                 ["object_id"] = id.ToString()
             };
         }
@@ -438,7 +438,7 @@ namespace AutoCADMCPPlugin.Commands
 
                 var result = new JObject
                 {
-                    ["id"] = hatch.ObjectId.Handle.Value.ToString(),
+                    ["id"] = Handles.Format(hatch.ObjectId),
                     ["type"] = "Hatch",
                     ["pattern"] = pattern,
                     ["scale"] = scale

@@ -6,6 +6,13 @@ Communicates with the AutoCAD .NET plugin via TCP socket using JSON-RPC 2.0.
 
 Architecture:
     Claude (MCP Client) -> stdio -> This Server -> TCP socket -> AutoCAD Plugin -> AutoCAD API
+
+Handles:
+    Every `handle` in and out of these tools is the hexadecimal entity handle,
+    the same string the properties palette, the LIST command, DXF group 5 and
+    AutoLISP's (handent "...") use - e.g. "97B176". Handles emitted by older
+    builds of this plugin were decimal ("9941366") and are still accepted on
+    input, but they are no longer produced.
 """
 
 import os
@@ -194,6 +201,11 @@ async def drawing_close(path: str = "", save: bool = False) -> str:
     save defaults to False: the drawing is closed and unsaved changes are
     DISCARDED. Pass save=True to write the file first. Closing is what releases
     AutoCAD's lock on the .dwg, so do it before another tool needs the file.
+
+    The result carries a `status` saying which of those actually happened -
+    "saved", "closed_unchanged" (there was nothing to save), "changes_discarded"
+    (there was, and it is gone) or "closed" (the drawing was not the active one,
+    so DBMOD could not be read and no claim is made either way).
     """
     params: dict = {"save": save}
     if path:
@@ -426,7 +438,11 @@ async def list_entities(
 
 @mcp.tool()
 async def get_entity(handle: str) -> str:
-    """Get detailed info about a specific entity by its handle ID."""
+    """Get detailed info about a specific entity by its handle.
+
+    The handle is hexadecimal, as AutoCAD shows it ("97B176"), so it can be
+    pasted straight into (handent "97B176") or a DXF filter.
+    """
     return await _call("get_entity", {"handle": handle})
 
 
@@ -1037,10 +1053,303 @@ async def set_units(
     return await _call("set_units", params)
 
 
+# =============================================================================
+# Plotting
+# =============================================================================
+
+_PT_PER_MM = 72.0 / 25.4
+
+
+def _trim_pdf_to_size(path: str, need_w: float, need_h: float, tol: float = 0.1) -> dict:
+    """Crop every page of `path` down to need_w x need_h millimetres, centred.
+
+    AutoCAD can only plot onto a paper size its driver defines, so a
+    non-standard sheet (840x594, 297x630) has to be plotted 1:1 centred on the
+    nearest larger sheet and the surplus removed afterwards. That is what this
+    does: it rewrites the PDF MediaBox to a box of exactly the requested size,
+    concentric with the page that came out of the driver, and drops the other
+    boxes so no viewer falls back to them.
+
+    The page size is measured from the file rather than taken from the plot
+    report, because PDF drivers quantize the sheet: "DWG To PDF.pc3" lands on a
+    0.0423 mm grid, so a nominal 841x594 A1 arrives as 841.02 x 594.08.
+
+    Returns a dict that is merged into the plot result. It always contains
+    `trimmed`; on failure it also contains `trim_error` with the reason, and
+    never raises - a PDF that could not be trimmed is still a valid plot.
+    """
+    try:
+        import pikepdf
+    except ImportError:
+        import sys
+        return {
+            "trimmed": False,
+            "trim_error": (
+                "pikepdf is not installed for the Python running this MCP "
+                "server (" + sys.executable + "), so the page was left at the "
+                "printer sheet size. Install it with: \"" + sys.executable +
+                "\" -m pip install pikepdf   - then restart the MCP host. The "
+                "plot itself is correct and centred on the sheet, so meanwhile "
+                "it can be cropped by hand to the `trim_target_mm` below."
+            ),
+            "trim_target_mm": [round(need_w, 2), round(need_h, 2)],
+        }
+
+    tmp = path + ".trim.tmp"
+    try:
+        with pikepdf.open(path) as pdf:
+            pages = 0
+            box_mm = None
+            size_mm = None
+            for page in pdf.pages:
+                mb = [float(v) for v in page.mediabox]
+                x0, y0 = min(mb[0], mb[2]), min(mb[1], mb[3])
+                x1, y1 = max(mb[0], mb[2]), max(mb[1], mb[3])
+                pw, ph = (x1 - x0) / _PT_PER_MM, (y1 - y0) / _PT_PER_MM
+
+                # The driver may have rotated the sheet, so try both ways round
+                # and keep whichever actually fits inside the page.
+                fits = [(w, h) for w, h in ((need_w, need_h), (need_h, need_w))
+                        if w <= pw + tol and h <= ph + tol]
+                if not fits:
+                    return {
+                        "trimmed": False,
+                        "trim_error": (
+                            "the target %.2f x %.2f mm does not fit inside the "
+                            "%.2f x %.2f mm page, so nothing was cropped - the "
+                            "plot may have been scaled or rotated unexpectedly"
+                            % (need_w, need_h, pw, ph)
+                        ),
+                        "trim_target_mm": [round(need_w, 2), round(need_h, 2)],
+                    }
+                tw, th = min(fits, key=lambda wh: (pw - wh[0]) + (ph - wh[1]))
+
+                if (pw - tw) <= tol and (ph - th) <= tol:
+                    return {
+                        "trimmed": False,
+                        "trim_reason": (
+                            "the page is already %.2f x %.2f mm, within %.2f mm "
+                            "of the target - nothing to crop" % (pw, ph, tol)
+                        ),
+                        "trimmed_size_mm": [round(pw, 2), round(ph, 2)],
+                    }
+
+                nx0 = x0 + (x1 - x0 - tw * _PT_PER_MM) / 2.0
+                ny0 = y0 + (y1 - y0 - th * _PT_PER_MM) / 2.0
+                box = [nx0, ny0, nx0 + tw * _PT_PER_MM, ny0 + th * _PT_PER_MM]
+                page.mediabox = box
+                # A leftover CropBox at the old size would win in most viewers,
+                # and the other three would misreport the trimmed sheet.
+                for key in ("/CropBox", "/TrimBox", "/ArtBox", "/BleedBox"):
+                    if key in page:
+                        del page[key]
+                pages += 1
+                if box_mm is None:
+                    box_mm = [round(v / _PT_PER_MM, 2) for v in box]
+                    size_mm = [round(tw, 2), round(th, 2)]
+
+            if not pages:
+                return {"trimmed": False, "trim_error": "the PDF has no pages"}
+            pdf.save(tmp)
+        os.replace(tmp, path)
+        return {
+            "trimmed": True,
+            "trimmed_size_mm": size_mm,
+            "trim_box_mm": box_mm,
+            "trimmed_pages": pages,
+        }
+    except Exception as e:
+        try:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+        except OSError:
+            pass
+        return {
+            "trimmed": False,
+            "trim_error": "%s: %s - the plot itself is intact, only the crop "
+                          "failed" % (type(e).__name__, e),
+            "trim_target_mm": [round(need_w, 2), round(need_h, 2)],
+        }
+
+
+def _merge(result, extra: dict):
+    """Merge extra fields into a plugin result, next to the fields it returned."""
+    if isinstance(result, dict):
+        data = result.get("data")
+        (data if isinstance(data, dict) else result).update(extra)
+    return result
+
+
+def _restate_size(result, path: str) -> None:
+    """Replace a stale `file_size` (and the byte count inside `message`) with
+    the size the file has now. Called after the PDF is rewritten in place; a
+    file that cannot be stat-ed is left reporting what the plugin said."""
+    old_size = _field(result, "file_size")
+    try:
+        new_size = os.path.getsize(path)
+    except OSError:
+        return
+    if not isinstance(old_size, int) or new_size == old_size:
+        return
+    patch = {"file_size": new_size}
+    message = _field(result, "message")
+    if isinstance(message, str):
+        stale = f"{old_size:,}"
+        if stale in message:
+            patch["message"] = message.replace(stale, f"{new_size:,}")
+    _merge(result, patch)
+
+
 @mcp.tool()
-async def plot_to_pdf(output_path: str) -> str:
-    """Export current drawing to PDF file."""
-    return await _call("plot_to_pdf", {"output_path": output_path})
+async def plot_devices(device: str = "", plotter: str = "", filter: str = "") -> str:
+    """List plot devices, plot style tables, and a device's paper sizes in mm.
+
+    Canonical paper names are not guessable - the A1 sheet a localized AutoCAD
+    shows as "ISO A1 (841.00 x 594.00 mm)" is called
+    "ISO_full_bleed_A1_(841.00_x_594.00_MM)" in the API. Pass `device` (e.g.
+    "DWG To PDF.pc3") to get its media list with sheet size, printable area and
+    margins in millimetres, so plot_to_pdf(paper=...) can be given a name that
+    exists. `filter` narrows the media list by substring, e.g. "A1".
+
+    `plotter` is an accepted synonym for `device`. Some MCP hosts route calls
+    through a bridge that reserves the argument name "device" for itself and
+    consumes it before the tool ever sees it; on those hosts `device` silently
+    arrives empty and `plotter` is the way through. Pass one or the other -
+    `device` wins if both are given.
+
+    Called with no device, it lists the sheets of "DWG To PDF.pc3". The answer
+    always echoes `requested_device` and `requested_filter`, so a dropped
+    argument is visible rather than silently ignored.
+    """
+    dev = device or plotter
+    params: dict = {}
+    if dev: params["device"] = dev
+    # Forwarded as well as merged, so the plugin can echo it back honestly.
+    if plotter: params["plotter"] = plotter
+    if filter: params["filter"] = filter
+    return await _call("plot_devices", params)
+
+
+@mcp.tool()
+async def plot_to_pdf(
+    output_path: str,
+    device: str = "",
+    plotter: str = "",
+    paper: str = "",
+    style_table: str = "",
+    area: str = "",
+    window: list[float] = None,
+    scale: str = "",
+    offset: str = "",
+    orientation: str = "",
+    layout: str = "",
+    lineweights: bool = True,
+    overwrite: bool = True,
+    trim: bool = True,
+) -> str:
+    """Plot the drawing to PDF and wait for the file to be written.
+
+    Goes through the PlottingServices API rather than the command line, so it
+    reports the real outcome and the real file size instead of fire-and-forget.
+
+    output_path  Where to write. A relative path resolves next to the drawing.
+    device       Plot device, default "DWG To PDF.pc3". See plot_devices.
+    plotter      Synonym for `device`, for MCP hosts whose bridge reserves the
+                 argument name "device" and eats it before the tool sees it.
+                 `device` wins if both are given.
+    paper        Canonical or localized media name, or "auto" (default): the
+                 smallest sheet whose *printable* area fits the window at the
+                 requested scale, which is what picks full-bleed sheets over
+                 bordered ones when the frame reaches the paper edge.
+    style_table  Plot style table, default "monochrome.ctb"; "none" keeps
+                 whatever the layout already uses.
+    area         extents | window | display | layout | limits. Defaults to
+                 "window" when `window` is given, otherwise "extents".
+    window       [x1, y1, x2, y2] in drawing units - normally the sheet frame,
+                 which in these drawings is a closed LWPOLYLINE on Defpoints.
+    scale        "1=1" (default), "1:100", a number, or "fit".
+    offset       "center" (default) or "dx,dy" in millimetres.
+    orientation  "auto" (default), "portrait" or "landscape".
+    layout       Layout to plot; default the current one.
+    lineweights  Honour lineweights, default True.
+    overwrite    Replace an existing file, default True.
+    trim         Crop the finished page down to the plotted window, default
+                 True. Set False to keep the whole printer sheet.
+
+    The result reports the media actually used and its millimetre size.
+
+    AutoCAD can only plot onto a paper size the device defines, so a
+    non-standard sheet (840x594, 297x630) is plotted 1:1 centred on the nearest
+    larger sheet and the surplus is cropped afterwards, here in the MCP server,
+    using pikepdf. That crop needs `pikepdf` installed (it is in
+    requirements.txt) and only happens for a `window` plot at a fixed scale with
+    `offset` left at "center".
+
+    The answer always says what happened: `trimmed` true or false, with
+    `trimmed_size_mm` and `trim_box_mm` when it worked, and `trim_error` or
+    `trim_reason` with the text when it did not - a missing pikepdf, a page that
+    is already the right size, or a target that does not fit. It is never
+    swallowed, and a failed crop never invalidates the plot.
+    """
+    params: dict = {"output_path": output_path, "lineweights": lineweights,
+                    "overwrite": overwrite}
+    dev = device or plotter
+    if dev: params["device"] = dev
+    if plotter: params["plotter"] = plotter
+    if paper: params["paper"] = paper
+    if style_table: params["style_table"] = style_table
+    if area: params["area"] = area
+    if window: params["window"] = window
+    if scale: params["scale"] = scale
+    if layout: params["layout"] = layout
+    if orientation: params["orientation"] = orientation
+    if offset:
+        s = offset.strip()
+        if s.lower() in ("center", "centre"):
+            params["offset"] = "center"
+        else:
+            try:
+                dx, dy = (float(p) for p in s.replace(";", ",").split(",")[:2])
+            except ValueError:
+                return json.dumps({
+                    "success": False,
+                    "error": f"offset must be 'center' or 'dx,dy' in millimetres, got {offset!r}",
+                }, indent=2)
+            params["offset"] = [dx, dy]
+
+    result = await _raw("plot_to_pdf", params)
+
+    # Crop the surplus sheet away. Everything needed is in the plot report:
+    # `required_mm` is the window multiplied by the scale, i.e. the sheet the
+    # drawing actually asked for, and the plugin only fills it in for a window
+    # plot at a fixed scale.
+    if isinstance(result, dict) and _field(result, "success") is not False:
+        need = _field(result, "required_mm")
+        used = _field(result, "output_path") or output_path
+        where = _field(result, "offset")
+        if not trim:
+            _merge(result, {"trimmed": False,
+                            "trim_reason": "trim=false, the full printer sheet was kept"})
+        elif not (isinstance(need, (list, tuple)) and len(need) == 2):
+            _merge(result, {"trimmed": False,
+                            "trim_reason": "no target size to crop to - cropping "
+                                           "applies to a window plot at a fixed scale"})
+        elif where != "center":
+            _merge(result, {"trimmed": False,
+                            "trim_reason": "the plot is offset rather than centred, "
+                                           "so the surplus is not symmetric and was left alone"})
+        else:
+            trim_report = await asyncio.to_thread(
+                _trim_pdf_to_size, used, float(need[0]), float(need[1]))
+            _merge(result, trim_report)
+            if trim_report.get("trimmed"):
+                # The plugin measured the file before pikepdf rewrote it, so the
+                # size it reported is the size of the untrimmed sheet. Re-stat
+                # and correct both the field and the sentence built from it,
+                # otherwise the answer names a size the file no longer has.
+                _restate_size(result, used)
+
+    return json.dumps(result, indent=2)
 
 
 # =============================================================================

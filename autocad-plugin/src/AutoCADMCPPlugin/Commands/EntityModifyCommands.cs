@@ -154,7 +154,7 @@ namespace AutoCADMCPPlugin.Commands
             {
                 foreach (string handle in handles)
                 {
-                    if (!TryResolve(db, handle, out ObjectId id)) { notFound.Add(handle); continue; }
+                    if (!Handles.TryResolve(db, handle, out ObjectId id)) { notFound.Add(handle); continue; }
 
                     Entity ent = tr.GetObject(id, OpenMode.ForRead) as Entity;
                     if (ent == null) { notFound.Add(handle); continue; }
@@ -174,32 +174,6 @@ namespace AutoCADMCPPlugin.Commands
             return CommandResult.Ok(result);
         }
 
-        /// <summary>
-        /// Resolve a handle string. The plugin emits handles as decimal (that is
-        /// what Handle.Value.ToString() produces), but AutoCAD's own UI shows
-        /// them in hex, so accept either rather than failing on a handle the
-        /// user copied out of the properties palette.
-        /// </summary>
-        private static bool TryResolve(Database db, string handle, out ObjectId id)
-        {
-            id = ObjectId.Null;
-
-            try
-            {
-                if (db.TryGetObjectId(new Handle(Convert.ToInt64(handle)), out id) && !id.IsNull)
-                    return true;
-            }
-            catch { }
-
-            try
-            {
-                if (db.TryGetObjectId(new Handle(Convert.ToInt64(handle, 16)), out id) && !id.IsNull)
-                    return true;
-            }
-            catch { }
-
-            return false;
-        }
     }
 
     public class GetEntityCommand : ICommand
@@ -219,17 +193,8 @@ namespace AutoCADMCPPlugin.Commands
 
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                ObjectId id;
-                try
-                {
-                    Handle h = new Handle(Convert.ToInt64(handle));
-                    if (!db.TryGetObjectId(h, out id))
-                        return CommandResult.Fail($"Entity not found with handle: {handle}");
-                }
-                catch
-                {
-                    return CommandResult.Fail($"Invalid handle format: {handle}");
-                }
+                ObjectId id = Handles.Resolve(db, handle, out string handleError);
+                if (handleError != null) return CommandResult.Fail(handleError);
 
                 Entity ent = tr.GetObject(id, OpenMode.ForRead) as Entity;
                 if (ent == null)
@@ -267,8 +232,7 @@ namespace AutoCADMCPPlugin.Commands
             using (LockDoc())
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                Handle h = new Handle(Convert.ToInt64(handle));
-                if (!db.TryGetObjectId(h, out ObjectId id))
+                if (!Handles.TryResolve(db, handle, out ObjectId id))
                     return CommandResult.Fail($"Entity not found: {handle}");
 
                 Entity ent = tr.GetObject(id, OpenMode.ForWrite) as Entity;
@@ -304,8 +268,7 @@ namespace AutoCADMCPPlugin.Commands
             using (LockDoc())
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                Handle h = new Handle(Convert.ToInt64(handle));
-                if (!db.TryGetObjectId(h, out ObjectId id))
+                if (!Handles.TryResolve(db, handle, out ObjectId id))
                     return CommandResult.Fail($"Entity not found: {handle}");
 
                 Entity ent = tr.GetObject(id, OpenMode.ForWrite) as Entity;
@@ -341,8 +304,7 @@ namespace AutoCADMCPPlugin.Commands
             using (LockDoc())
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                Handle h = new Handle(Convert.ToInt64(handle));
-                if (!db.TryGetObjectId(h, out ObjectId id))
+                if (!Handles.TryResolve(db, handle, out ObjectId id))
                     return CommandResult.Fail($"Entity not found: {handle}");
 
                 Entity ent = tr.GetObject(id, OpenMode.ForRead) as Entity;
@@ -389,8 +351,7 @@ namespace AutoCADMCPPlugin.Commands
             using (LockDoc())
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                Handle h = new Handle(Convert.ToInt64(handle));
-                if (!db.TryGetObjectId(h, out ObjectId id))
+                if (!Handles.TryResolve(db, handle, out ObjectId id))
                     return CommandResult.Fail($"Entity not found: {handle}");
 
                 Entity ent = tr.GetObject(id, OpenMode.ForWrite) as Entity;
@@ -428,8 +389,7 @@ namespace AutoCADMCPPlugin.Commands
             using (LockDoc())
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                Handle h = new Handle(Convert.ToInt64(handle));
-                if (!db.TryGetObjectId(h, out ObjectId id))
+                if (!Handles.TryResolve(db, handle, out ObjectId id))
                     return CommandResult.Fail($"Entity not found: {handle}");
 
                 Entity ent = tr.GetObject(id, OpenMode.ForWrite) as Entity;
@@ -465,8 +425,7 @@ namespace AutoCADMCPPlugin.Commands
             using (LockDoc())
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                Handle h = new Handle(Convert.ToInt64(handle));
-                if (!db.TryGetObjectId(h, out ObjectId id))
+                if (!Handles.TryResolve(db, handle, out ObjectId id))
                     return CommandResult.Fail($"Entity not found: {handle}");
 
                 Entity ent = tr.GetObject(id, eraseSource ? OpenMode.ForWrite : OpenMode.ForRead) as Entity;

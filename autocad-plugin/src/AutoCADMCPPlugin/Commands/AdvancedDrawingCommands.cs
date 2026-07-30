@@ -231,8 +231,7 @@ namespace AutoCADMCPPlugin.Commands
                 int entityCount = 0;
                 foreach (var hToken in handles)
                 {
-                    Handle h = new Handle(Convert.ToInt64(hToken.ToString()));
-                    if (!db.TryGetObjectId(h, out ObjectId entId)) continue;
+                    if (!Handles.TryResolve(db, hToken.ToString(), out ObjectId entId)) continue;
 
                     Entity ent = tr.GetObject(entId, eraseOriginals ? OpenMode.ForWrite : OpenMode.ForRead) as Entity;
                     if (ent == null) continue;
@@ -421,7 +420,7 @@ namespace AutoCADMCPPlugin.Commands
 
                                 ObjectId hbId = ms.AppendEntity(hb);
                                 tr.AddNewlyCreatedDBObject(hb, true);
-                                createdHandles.Add(hb.Handle.Value.ToString());
+                                createdHandles.Add(Handles.Format(hb));
 
                                 Hatch h = new Hatch();
                                 string hPattern = p["pattern"]?.ToString() ?? "SOLID";
@@ -443,7 +442,7 @@ namespace AutoCADMCPPlugin.Commands
                                     h.ColorIndex = hAci.Value;
                                 if (hTrueColor != null) h.Color = hTrueColor;
 
-                                createdHandles.Add(h.Handle.Value.ToString());
+                                createdHandles.Add(Handles.Format(h));
 
                                 ent = null; // already appended — skip the
                                             // generic post-switch append.
@@ -466,7 +465,7 @@ namespace AutoCADMCPPlugin.Commands
 
                             ObjectId newId = ms.AppendEntity(ent);
                             tr.AddNewlyCreatedDBObject(ent, true);
-                            createdHandles.Add(newId.Handle.Value.ToString());
+                            createdHandles.Add(Handles.Format(newId));
                         }
                     }
                     catch { /* skip invalid entities */ }
@@ -484,28 +483,7 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class PlotToPdfCommand : ICommand
-    {
-        public string MethodName => "plot_to_pdf";
-
-        public CommandResult Execute(JObject parameters)
-        {
-            Document doc = Application.DocumentManager.MdiActiveDocument;
-            if (doc == null) return CommandResult.Fail("No active document");
-
-            string outputPath = parameters["output_path"]?.ToString();
-            if (string.IsNullOrEmpty(outputPath))
-                return CommandResult.Fail("Parameter 'output_path' is required");
-
-            // Use -EXPORT command for PDF which is simpler than -PLOT
-            string cmd = $"._-EXPORTPDF \"{outputPath}\" ";
-            doc.SendStringToExecute(cmd, true, false, false);
-
-            return CommandResult.Ok(new JObject
-            {
-                ["output_path"] = outputPath,
-                ["message"] = "PDF export command sent to AutoCAD"
-            });
-        }
-    }
+    // PlotToPdfCommand used to live here. It now has a file of its own,
+    // Commands/PlotCommands.cs, because a plot that actually reaches disk needs
+    // the PlottingServices API rather than a one-line SendStringToExecute.
 }

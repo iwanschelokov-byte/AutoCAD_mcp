@@ -54,6 +54,29 @@ namespace AutoCADMCPPlugin.Commands
             }
             return byName;
         }
+
+        /// <summary>
+        /// Whether <paramref name="doc"/> has edits that have not been written
+        /// to disk, or null when that cannot be determined.
+        ///
+        /// DBMOD is the only thing AutoCAD offers here, and
+        /// Application.GetSystemVariable reads it from the *active* document, so
+        /// the answer is only trustworthy for that one. Returning null rather
+        /// than guessing keeps callers from reporting "nothing was lost" about a
+        /// drawing whose state we never actually looked at.
+        /// </summary>
+        public static bool? HasUnsavedChanges(Document doc)
+        {
+            try
+            {
+                if (doc == null) return null;
+                if (!ReferenceEquals(doc, Application.DocumentManager.MdiActiveDocument)) return null;
+                object v = Application.GetSystemVariable("DBMOD");
+                if (v == null) return null;
+                return Convert.ToInt32(v) != 0;
+            }
+            catch { return null; }
+        }
     }
 
     /// <summary>
@@ -96,21 +119,51 @@ namespace AutoCADMCPPlugin.Commands
                     "Cannot save this drawing on close: it has never been written to disk. " +
                     "Call drawing_save with a 'path' first, or close with save=false.");
 
+            // Ask before closing: afterwards the document is gone and DBMOD
+            // belongs to whatever drawing AutoCAD made active next.
+            bool? hadChanges = DocumentHelper.HasUnsavedChanges(doc);
+
             var result = new JObject
             {
                 ["document"] = name,
                 ["path"] = filename,
                 ["saved"] = save
             };
+            if (hadChanges.HasValue) result["had_unsaved_changes"] = hadChanges.Value;
 
             if (Application.DocumentManager.IsApplicationContext)
             {
                 string err = CloseOne(doc, save);
                 if (err != null) return CommandResult.Fail(err);
                 result["closed"] = true;
-                result["message"] = save
-                    ? $"Drawing saved and closed: {name}"
-                    : $"Drawing closed without saving: {name}";
+
+                // "Closed without saving" reads like a warning, and it was
+                // printed even when the drawing had nothing to save. Say which
+                // of the two actually happened.
+                if (save)
+                {
+                    result["status"] = "saved";
+                    result["message"] = hadChanges == false
+                        ? $"Drawing closed and written to disk (it had no pending changes): {name}"
+                        : $"Drawing saved and closed: {name}";
+                }
+                else if (hadChanges == false)
+                {
+                    result["status"] = "closed_unchanged";
+                    result["message"] = $"Drawing closed; there was nothing to save: {name}";
+                }
+                else if (hadChanges == true)
+                {
+                    result["status"] = "changes_discarded";
+                    result["message"] = $"Drawing closed and its unsaved changes were discarded: {name}";
+                }
+                else
+                {
+                    result["status"] = "closed";
+                    result["message"] =
+                        $"Drawing closed without saving: {name} (it was not the active drawing, " +
+                        "so whether it had unsaved changes could not be checked).";
+                }
             }
             else
             {
@@ -122,6 +175,7 @@ namespace AutoCADMCPPlugin.Commands
                     state => CloseOne(target, doSave), null);
                 result["closed"] = false;
                 result["queued"] = true;
+                result["status"] = "queued";
                 result["message"] = $"Close queued for {name}; verify with drawing_list.";
             }
 
@@ -231,6 +285,9 @@ namespace AutoCADMCPPlugin.Commands
                 try { o["path"] = d.Database?.Filename; } catch { }
                 o["active"] = ReferenceEquals(d, active);
                 try { o["read_only"] = d.IsReadOnly; } catch { }
+                // Only meaningful for the active drawing; see HasUnsavedChanges.
+                bool? dirty = DocumentHelper.HasUnsavedChanges(d);
+                if (dirty.HasValue) o["unsaved_changes"] = dirty.Value;
                 docs.Add(o);
             }
 

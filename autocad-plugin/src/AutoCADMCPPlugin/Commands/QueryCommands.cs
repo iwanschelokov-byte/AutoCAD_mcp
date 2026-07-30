@@ -50,8 +50,7 @@ namespace AutoCADMCPPlugin.Commands
             Database db = doc.Database;
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                Handle h = new Handle(Convert.ToInt64(handle));
-                if (!db.TryGetObjectId(h, out ObjectId id))
+                if (!Handles.TryResolve(db, handle, out ObjectId id))
                     return CommandResult.Fail($"Entity not found: {handle}");
 
                 Entity ent = tr.GetObject(id, OpenMode.ForRead) as Entity;
@@ -116,8 +115,7 @@ namespace AutoCADMCPPlugin.Commands
             Database db = doc.Database;
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                Handle h = new Handle(Convert.ToInt64(handle));
-                if (!db.TryGetObjectId(h, out ObjectId id))
+                if (!Handles.TryResolve(db, handle, out ObjectId id))
                     return CommandResult.Fail($"Entity not found: {handle}");
 
                 Entity ent = tr.GetObject(id, OpenMode.ForRead) as Entity;
@@ -339,7 +337,7 @@ namespace AutoCADMCPPlugin.Commands
                         {
                             matches.Add(new JObject
                             {
-                                ["handle"] = id.Handle.Value.ToString(),
+                                ["handle"] = Handles.Format(id),
                                 ["type"] = "DBText",
                                 ["text"] = dbt.TextString,
                                 ["position"] = new JArray(dbt.Position.X, dbt.Position.Y, dbt.Position.Z),
@@ -358,7 +356,7 @@ namespace AutoCADMCPPlugin.Commands
                         {
                             matches.Add(new JObject
                             {
-                                ["handle"] = id.Handle.Value.ToString(),
+                                ["handle"] = Handles.Format(id),
                                 ["type"] = "MText",
                                 ["text"] = plainText,
                                 ["text_clean"] = searchable.Trim(),
@@ -390,7 +388,7 @@ namespace AutoCADMCPPlugin.Commands
                         {
                             var obj = new JObject
                             {
-                                ["handle"] = id.Handle.Value.ToString(),
+                                ["handle"] = Handles.Format(id),
                                 ["type"] = "BlockReference",
                                 ["block_name"] = bref.Name,
                                 ["position"] = new JArray(bref.Position.X, bref.Position.Y, bref.Position.Z),
@@ -462,7 +460,7 @@ namespace AutoCADMCPPlugin.Commands
                         {
                             var obj = new JObject
                             {
-                                ["handle"] = id.Handle.Value.ToString(),
+                                ["handle"] = Handles.Format(id),
                                 ["type"] = ent.GetType().Name,
                                 ["dxf_type"] = EntityInfo.DxfName(ent),
                                 ["layer"] = ent.Layer,
@@ -513,10 +511,8 @@ namespace AutoCADMCPPlugin.Commands
             Database db = doc.Database;
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                Handle h1 = new Handle(Convert.ToInt64(handle1));
-                Handle h2 = new Handle(Convert.ToInt64(handle2));
-                if (!db.TryGetObjectId(h1, out ObjectId id1)) return CommandResult.Fail($"Entity not found: {handle1}");
-                if (!db.TryGetObjectId(h2, out ObjectId id2)) return CommandResult.Fail($"Entity not found: {handle2}");
+                if (!Handles.TryResolve(db, handle1, out ObjectId id1)) return CommandResult.Fail($"Entity not found: {handle1}");
+                if (!Handles.TryResolve(db, handle2, out ObjectId id2)) return CommandResult.Fail($"Entity not found: {handle2}");
 
                 Entity ent1 = tr.GetObject(id1, OpenMode.ForRead) as Entity;
                 Entity ent2 = tr.GetObject(id2, OpenMode.ForRead) as Entity;
@@ -589,10 +585,8 @@ namespace AutoCADMCPPlugin.Commands
             Database db = doc.Database;
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                Handle h1 = new Handle(Convert.ToInt64(handle1));
-                Handle h2 = new Handle(Convert.ToInt64(handle2));
-                if (!db.TryGetObjectId(h1, out ObjectId id1)) return CommandResult.Fail($"Entity not found: {handle1}");
-                if (!db.TryGetObjectId(h2, out ObjectId id2)) return CommandResult.Fail($"Entity not found: {handle2}");
+                if (!Handles.TryResolve(db, handle1, out ObjectId id1)) return CommandResult.Fail($"Entity not found: {handle1}");
+                if (!Handles.TryResolve(db, handle2, out ObjectId id2)) return CommandResult.Fail($"Entity not found: {handle2}");
 
                 Entity ent1 = tr.GetObject(id1, OpenMode.ForRead) as Entity;
                 Entity ent2 = tr.GetObject(id2, OpenMode.ForRead) as Entity;

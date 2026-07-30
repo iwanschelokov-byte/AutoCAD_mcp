@@ -1,16 +1,28 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <!-- AutoCAD 2027 install folder (holds acmgd/accoremgd/Newtonsoft.Json).
+         Override on the command line if AutoCAD is installed elsewhere:
+         dotnet build ... -p:AutoCADPath2027="D:\Path\To\AutoCAD 2027" -->
+    <AutoCADPath2027 Condition="'$(AutoCADPath2027)' == ''">C:\Program Files\Autodesk\AutoCAD 2027</AutoCADPath2027>
+
     <!--
       Multi-target build:
         net48           → AutoCAD 2022-2024 (.NET Framework 4.8)
         net8.0-windows  → AutoCAD 2025-2026 (.NET 8)
         net10.0-windows → AutoCAD 2027 (.NET 10)
 
-      To build for just one, change TargetFrameworks to TargetFramework:
-        <TargetFramework>net10.0-windows</TargetFramework>
+      The 2027 target compiles against the Newtonsoft.Json that ships inside
+      AutoCAD 2027 (see the Reference item below), so it is only added on
+      machines where that assembly is actually present. On a machine without
+      AutoCAD 2027 the build produces the two older targets instead of failing
+      on a reference it cannot resolve.
+
+      To build one target only:
+        dotnet build ... -p:TargetFrameworks=net10.0-windows
     -->
-    <TargetFrameworks>net48;net8.0-windows;net10.0-windows</TargetFrameworks>
+    <TargetFrameworks>net48;net8.0-windows</TargetFrameworks>
+    <TargetFrameworks Condition="Exists('$(AutoCADPath2027)\Newtonsoft.Json.dll')">net48;net8.0-windows;net10.0-windows</TargetFrameworks>
     <RootNamespace>AutoCADMCPPlugin</RootNamespace>
     <AssemblyName>AutoCADMCPPlugin</AssemblyName>
     <LangVersion>latest</LangVersion>
@@ -24,11 +36,6 @@
     <Version>1.0.0</Version>
     <Authors>AutoCAD MCP</Authors>
     <Description>MCP plugin for AI-to-AutoCAD communication via TCP socket</Description>
-
-    <!-- AutoCAD 2027 install folder (holds acmgd/accoremgd/Newtonsoft.Json).
-         Override on the command line if AutoCAD is installed elsewhere:
-         dotnet build ... -p:AutoCADPath2027="D:\Path\To\AutoCAD 2027" -->
-    <AutoCADPath2027 Condition="'$(AutoCADPath2027)' == ''">C:\Program Files\Autodesk\AutoCAD 2027</AutoCADPath2027>
   </PropertyGroup>
 
   <!-- ============================================================ -->
