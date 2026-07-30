@@ -6,6 +6,17 @@ AI-powered AutoCAD automation via the **Model Context Protocol (MCP)**. Enables 
 > "Find the battery room nearest to the toilet" — and it navigates there.
 > "Take a screenshot and check if the layout looks correct" — and it verifies visually.
 
+> **This is a fork** of [NCO-1986/AutoCAD_mcp](https://github.com/NCO-1986/AutoCAD_mcp) by NCO-1986.
+> It adds AutoCAD 2027 (.NET 10 / R26.0) support, a working `plot_to_pdf` that trims the page to
+> the plotted window, hexadecimal entity handles, document control (`drawing_new` / `drawing_open` /
+> `drawing_save` / `drawing_close` / `drawing_list` / `drawing_info`), command-line diagnostics and a
+> `create_block` base-point fix. All of it has been offered back upstream as
+> [PR #4](https://github.com/NCO-1986/AutoCAD_mcp/pull/4) — if it is merged, this fork becomes
+> unnecessary. No Autodesk libraries or AutoCAD binaries are redistributed here: AutoCAD is
+> proprietary software and licensing it is up to you.
+>
+> Русское описание: [README.ru.md](README.ru.md)
+
 ## Architecture
 
 ```
