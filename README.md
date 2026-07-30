@@ -21,13 +21,13 @@ AI-powered AutoCAD automation via the **Model Context Protocol (MCP)**. Enables 
 
 ```
 ┌─────────────┐     stdio      ┌──────────────────┐     TCP socket      ┌──────────────────┐
-│   Claude /   │ ──── MCP ────▶ │  Python MCP      │ ── JSON-RPC 2.0 ──▶│  C# Plugin       │
-│   AI Client  │◀──────────────│  Server           │◀────────────────── │  (inside AutoCAD) │
+│   Claude /  │ ──── MCP ────▶│  Python MCP      │ ── JSON-RPC 2.0 ──▶ │  C# Plugin       │
+│   AI Client │◀──────────────│  Server          │◀──────────────────  │ (inside AutoCAD) │
 └─────────────┘                └──────────────────┘   localhost:8081    └──────────────────┘
-                                                                              │
-┌──────────────┐                          HTTP / JSON-RPC 2.0                  │
+                                                                                │
+┌──────────────┐                          HTTP / JSON-RPC 2.0                   │
 │   Browser    │ ──────────────────────────────────────────────────────────────▶│
-│   (web app)  │  POST http://127.0.0.1:8082/jsonrpc  (CORS + Chrome PNA ok)   │
+│   (web app)  │  POST http://127.0.0.1:8082/jsonrpc  (CORS + Chrome PNA ok)    │
 └──────────────┘                                                                │
                                                                        AutoCAD .NET API
 ```
