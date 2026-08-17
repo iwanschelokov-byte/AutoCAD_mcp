@@ -2,7 +2,7 @@
 ;  AutoCAD MCP Plugin - Inno Setup installer
 ;
 ;  Deploys the plugin bundle into the AutoCAD ApplicationPlugins folder so it
-;  autoloads on startup, and optionally stages the Python MCP server.
+;  autoloads on startup, and optionally installs the MCP server executable.
 ;
 ;  Build with:
 ;      iscc installer\AutoCADMCP.iss
@@ -20,7 +20,7 @@
 
 ; Staged by build\build-all.ps1
 #define BundleDir      "..\autocad-plugin\dist\AutoCADMCPPlugin.bundle"
-#define ServerDir      "..\autocad-plugin\src\mcp_server"
+#define ServerDir      "..\autocad-plugin\dist\server"
 
 [Setup]
 AppId={{7E3A1C90-4C2B-4E1D-9E5A-2B6F8D41A7C3}
@@ -53,7 +53,7 @@ Name: "custom"; Description: "Custom"; Flags: iscustom
 [Components]
 Name: "plugin"; Description: "AutoCAD plugin (autoloads in AutoCAD 2021-2027)"; \
     Types: full plugin custom; Flags: fixed
-Name: "server"; Description: "Python MCP server (requires Python 3.10+)"; \
+Name: "server"; Description: "MCP server (self-contained, nothing else to install)"; \
     Types: full custom
 
 [Files]
@@ -67,11 +67,11 @@ Source: "{#BundleDir}\Contents\*"; \
     DestDir: "{commonappdata}\Autodesk\ApplicationPlugins\{#BundleName}\Contents"; \
     Components: plugin; Flags: ignoreversion recursesubdirs createallsubdirs
 
-; --- Python MCP server ---
-Source: "{#ServerDir}\*.py"; DestDir: "{app}\mcp_server"; \
-    Components: server; Flags: ignoreversion
-Source: "{#ServerDir}\requirements.txt"; DestDir: "{app}\mcp_server"; \
-    Components: server; Flags: ignoreversion
+; --- MCP server ---
+; One self-contained executable staged by build\build-all.ps1. There is no
+; runtime to install, which is why this component no longer has a prerequisite.
+Source: "{#ServerDir}\*"; DestDir: "{app}\server"; Excludes: "*.pdb"; \
+    Components: server; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; --- Docs ---
 Source: "..\README.md";    DestDir: "{app}"; Flags: ignoreversion
@@ -82,10 +82,10 @@ Name: "{group}\AutoCAD MCP README"; Filename: "{app}\README.md"
 Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
 
 [Run]
-Filename: "{cmd}"; \
-    Parameters: "/c pip install -r ""{app}\mcp_server\requirements.txt"""; \
-    Description: "Install Python dependencies for the MCP server"; \
-    Components: server; Flags: postinstall runhidden skipifsilent unchecked
+; Confirms the server runs and reports whether it can already see AutoCAD.
+Filename: "{app}\server\autocad-mcp-server.exe"; Parameters: "--check"; \
+    Description: "Check the MCP server can reach AutoCAD"; \
+    Components: server; Flags: postinstall skipifsilent unchecked
 
 [UninstallDelete]
 ; Remove the bundle folder itself; Inno only tracks the files it copied.
@@ -149,6 +149,9 @@ begin
              'AutoCAD 2021-2027 is installed.', mbInformation, MB_OK)
     else if not WizardSilent() then
       MsgBox('Installed for AutoCAD: ' + Versions + #13#10#13#10 +
-             'Start AutoCAD and type MCPSTART to begin.', mbInformation, MB_OK);
+             'Start AutoCAD and type MCPSTART to begin.' + #13#10#13#10 +
+             'Point your MCP client at:' + #13#10 +
+             ExpandConstant('{app}\server\autocad-mcp-server.exe'),
+             mbInformation, MB_OK);
   end;
 end;
