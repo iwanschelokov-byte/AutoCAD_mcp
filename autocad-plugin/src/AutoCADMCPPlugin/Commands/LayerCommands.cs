@@ -9,11 +9,11 @@ using static AutoCADMCPPlugin.Commands.EntityHelper;
 
 namespace AutoCADMCPPlugin.Commands
 {
-    public class ListLayersCommand : ICommand
+    public class ListLayersCommand : AcadCommand
     {
-        public string MethodName => "list_layers";
+        public override string MethodName => "list_layers";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -53,11 +53,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class CreateLayerCommand : ICommand
+    public class CreateLayerCommand : AcadCommand
     {
-        public string MethodName => "create_layer";
+        public override string MethodName => "create_layer";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -120,11 +120,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class SetCurrentLayerCommand : ICommand
+    public class SetCurrentLayerCommand : AcadCommand
     {
-        public string MethodName => "set_current_layer";
+        public override string MethodName => "set_current_layer";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -151,11 +151,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class SetLayerPropertiesCommand : ICommand
+    public class SetLayerPropertiesCommand : AcadCommand
     {
-        public string MethodName => "set_layer_properties";
+        public override string MethodName => "set_layer_properties";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");

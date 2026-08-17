@@ -1,0 +1,93 @@
+name: build
+
+# Validates every push and PR. No AutoCAD installation is needed: the plugin
+# compiles against the AutoCAD.NET reference assemblies from NuGet.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  plugin:
+    name: Plugin (net48 + net8.0 + net10.0)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Restore
+        run: dotnet restore autocad-plugin/src/AutoCADMCPPlugin/AutoCADMCPPlugin.csproj -p:IncludeNet10=true
+
+      - name: Build all three targets
+        run: >
+          dotnet build autocad-plugin/src/AutoCADMCPPlugin/AutoCADMCPPlugin.csproj
+          -c Release --no-restore -p:IncludeNet10=true
+          -warnaserror
+
+      - name: Verify registry, classification and JSON-RPC contract
+        shell: pwsh
+        run: ./build/verify-assembly.ps1
+
+      - name: Upload build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-dlls
+          path: |
+            autocad-plugin/src/AutoCADMCPPlugin/bin/Release/net48/AutoCADMCPPlugin.dll
+            autocad-plugin/src/AutoCADMCPPlugin/bin/Release/net8.0-windows/AutoCADMCPPlugin.dll
+            autocad-plugin/src/AutoCADMCPPlugin/bin/Release/net10.0-windows/AutoCADMCPPlugin.dll
+          if-no-files-found: error
+
+  server:
+    name: MCP server (Python)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r autocad-plugin/src/mcp_server/requirements.txt
+
+      - name: Syntax check
+        run: |
+          python -m compileall -q autocad-plugin/src/mcp_server/server.py
+          python -m compileall -q tests/runtime_verify.py
+          python -m compileall -q test_all_tools.py
+
+      - name: Verify every MCP tool maps to a registered command
+        run: python build/verify_tool_parity.py
+
+      - name: Verify generated tool schemas are up to date
+        run: python build/generate_tool_schemas.py --check
+
+  mcp-server:
+    name: MCP server (C#)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish self-contained server
+        run: >
+          dotnet publish autocad-plugin/src/AutoCADMCP.Server/AutoCADMCP.Server.csproj
+          -c Release -o dist/server --nologo
+
+      - name: Drive the MCP protocol over stdio
+        shell: pwsh
+        run: ./build/verify-mcp-server.ps1 -ServerExe dist/server/autocad-mcp-server.exe

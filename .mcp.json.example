@@ -1,6 +1,28 @@
 {
+  "_comment": [
+    "Copy this to .mcp.json and keep ONE of the two server entries below.",
+    "Both expose the same 180 tools.",
+    "",
+    "autocad-mcp        -> C# server: a single self-contained exe, no Python needed.",
+    "                      Build it with build/build-all.ps1, which publishes to",
+    "                      autocad-plugin/dist/server/autocad-mcp-server.exe.",
+    "",
+    "autocad-mcp-python -> Python server: no build step, handy while developing.",
+    "                      Needs 'pip install -r autocad-plugin/src/mcp_server/requirements.txt'.",
+    "",
+    "Either way AutoCAD must be running with the plugin loaded and MCPSTART issued."
+  ],
+
   "mcpServers": {
     "autocad-mcp": {
+      "command": "autocad-plugin/dist/server/autocad-mcp-server.exe",
+      "env": {
+        "AUTOCAD_MCP_HOST": "localhost",
+        "AUTOCAD_MCP_PORT": "8081"
+      }
+    },
+
+    "autocad-mcp-python": {
       "command": "python",
       "args": ["autocad-plugin/src/mcp_server/server.py"],
       "env": {

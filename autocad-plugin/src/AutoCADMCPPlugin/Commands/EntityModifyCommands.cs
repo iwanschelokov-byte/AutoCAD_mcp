@@ -14,11 +14,11 @@ namespace AutoCADMCPPlugin.Commands
     // Entity Query commands
     // ========================================================================
 
-    public class ListEntitiesCommand : ICommand
+    public class ListEntitiesCommand : AcadCommand
     {
-        public string MethodName => "list_entities";
+        public override string MethodName => "list_entities";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -113,11 +113,11 @@ namespace AutoCADMCPPlugin.Commands
     /// Read several entities in one call. Reading a selection of 40 handles used
     /// to mean 40 round trips through get_entity.
     /// </summary>
-    public class GetEntitiesCommand : ICommand
+    public class GetEntitiesCommand : AcadCommand
     {
-        public string MethodName => "get_entities";
+        public override string MethodName => "get_entities";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -176,11 +176,11 @@ namespace AutoCADMCPPlugin.Commands
 
     }
 
-    public class GetEntityCommand : ICommand
+    public class GetEntityCommand : AcadCommand
     {
-        public string MethodName => "get_entity";
+        public override string MethodName => "get_entity";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -214,11 +214,11 @@ namespace AutoCADMCPPlugin.Commands
     // Entity Modification commands
     // ========================================================================
 
-    public class EraseEntityCommand : ICommand
+    public class EraseEntityCommand : AcadCommand
     {
-        public string MethodName => "erase_entity";
+        public override string MethodName => "erase_entity";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -247,11 +247,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class MoveEntityCommand : ICommand
+    public class MoveEntityCommand : AcadCommand
     {
-        public string MethodName => "move_entity";
+        public override string MethodName => "move_entity";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -283,11 +283,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class CopyEntityCommand : ICommand
+    public class CopyEntityCommand : AcadCommand
     {
-        public string MethodName => "copy_entity";
+        public override string MethodName => "copy_entity";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -330,11 +330,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class RotateEntityCommand : ICommand
+    public class RotateEntityCommand : AcadCommand
     {
-        public string MethodName => "rotate_entity";
+        public override string MethodName => "rotate_entity";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -366,11 +366,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class ScaleEntityCommand : ICommand
+    public class ScaleEntityCommand : AcadCommand
     {
-        public string MethodName => "scale_entity";
+        public override string MethodName => "scale_entity";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -404,11 +404,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class MirrorEntityCommand : ICommand
+    public class MirrorEntityCommand : AcadCommand
     {
-        public string MethodName => "mirror_entity";
+        public override string MethodName => "mirror_entity";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");

@@ -18,56 +18,19 @@ Claude (AI) ──MCP stdio──> Python MCP Server ──TCP socket──> C# 
 
 AutoCAD's .NET API is single-threaded (UI thread only). The plugin uses `Application.Idle` event marshaling (similar to Revit's `ExternalEvent` pattern) to safely execute commands from socket handler threads on the main thread.
 
-## Supported Tools (33 total)
+## Supported Tools
 
-### System
-- `system_status` — Plugin version, AutoCAD version, active document
-- `list_methods` — All available commands
+**186 MCP tools** across system, drawing, entities, layers, blocks, annotations,
+layouts/paper space, xrefs, block attributes, modify operations, 3D solids,
+groups/layer states/views/UCS, and drawing data/audit.
 
-### Drawing Management
-- `drawing_new` — Create new drawing (optional template)
-- `drawing_open` — Open .dwg file
-- `drawing_save` — Save / Save As
-- `drawing_info` — Entity count, layers, file path
+The authoritative tool table lives in the [root README](../README.md#features--186-mcp-tools) —
+it is kept in sync with `Core/CommandRegistry.cs` and is not duplicated here.
 
-### Entity Creation (9 tools)
-- `create_line` — Line from start to end point
-- `create_circle` — Circle at center with radius
-- `create_arc` — Arc with center, radius, start/end angle
-- `create_polyline` — Polyline through points (open or closed)
-- `create_rectangle` — Rectangle from two corners
-- `create_ellipse` — Ellipse with major/minor radii
-- `create_text` — Single-line text
-- `create_mtext` — Multi-line text
-- `create_hatch` — Hatch with boundary and pattern
+At runtime, ask the plugin itself:
 
-### Entity Query & Modification (7 tools)
-- `list_entities` — List entities (filter by layer/type)
-- `get_entity` — Detailed entity info by handle
-- `erase_entity` — Delete entity
-- `move_entity` — Move entity
-- `copy_entity` — Copy entity
-- `rotate_entity` — Rotate entity
-- `scale_entity` — Scale entity
-- `mirror_entity` — Mirror entity
-
-### Layers (4 tools)
-- `list_layers` — All layers with properties
-- `create_layer` — New layer with color/linetype
-- `set_current_layer` — Switch active layer
-- `set_layer_properties` — Modify color, freeze, lock, etc.
-
-### Blocks (2 tools)
-- `list_blocks` — Block definitions with attributes
-- `insert_block` — Insert block with position/rotation/scale/attributes
-
-### Annotations (2 tools)
-- `create_linear_dimension` — Horizontal/vertical dimension
-- `create_aligned_dimension` — Aligned dimension
-
-### View (2 tools)
-- `zoom_extents` — Fit all entities
-- `zoom_window` — Zoom to area
+- `list_methods` — every registered method name
+- `get_capabilities` — counts, build target, supported AutoCAD range, destructive-tool list
 
 ## Setup
 
@@ -145,21 +108,28 @@ In Claude Code or Claude Desktop:
 | `AUTOCAD_MCP_HOST` | `localhost` | Plugin socket host |
 | `AUTOCAD_MCP_PORT` | `8081` | Plugin socket port |
 
-## Adapting for Other AutoCAD Versions
+## AutoCAD Version Support
 
-| AutoCAD Version | .NET Version | Change in .csproj |
-|----------------|-------------|-------------------|
-| 2027 | .NET 10 | `net10.0-windows` + `AutoCAD.NET` 26.0.0 |
-| 2025–2026 | .NET 8 | `net8.0-windows` (default) |
-| 2024 | .NET Framework 4.8 | `net48` |
-| 2023 and below | .NET Framework 4.8 | `net48` + adjust NuGet versions |
+No .csproj editing is needed — the project multi-targets and the bundle manifest
+selects the right binary for whichever AutoCAD is running.
 
-The `net48` and `net8.0-windows` targets are always built. The 2027 target is added only when AutoCAD 2027 is installed on the build machine, because it compiles against the `Newtonsoft.Json` that ships inside AutoCAD 2027 so the compile-time and run-time signatures match; on a machine without it the build produces the two older targets rather than failing on a reference it cannot resolve.
+| AutoCAD | Release | Target | Built by default |
+|---------|---------|--------|------------------|
+| 2021–2024 | R24.0–R24.3 | `net48` | yes |
+| 2025–2026 | R25.0–R25.1 | `net8.0-windows` | yes |
+| 2027 | R26.0 | `net10.0-windows` | no — needs .NET 10 SDK |
 
-For AutoCAD 2024 and below, switch the NuGet packages:
-```xml
-<PackageReference Include="AutoCAD.NET.Core" Version="24.*" />
-<PackageReference Include="AutoCAD.NET.Model" Version="24.*" />
+```bash
+dotnet build -c Release                       # net48 + net8.0
+dotnet build -c Release -p:IncludeNet10=true  # + net10.0 (AutoCAD 2027)
 ```
 
-Or reference DLLs directly from the AutoCAD install directory (see comments in .csproj).
+The `net48` leg is compiled against AutoCAD **2021** reference assemblies on
+purpose: a plugin may only use APIs present in the oldest release it targets, so
+this is what allows one binary to load on 2021 through 2024. If someone uses a
+newer API by accident, the build fails — that is the guardrail.
+
+All version-conditional code lives in `Core/AcadCompat.cs`. Keep it that way.
+
+**AutoCAD LT is not supported and cannot be** — LT has no `NETLOAD` and cannot
+load .NET plugins at any version.

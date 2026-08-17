@@ -10,11 +10,11 @@ using static AutoCADMCPPlugin.Commands.EntityHelper;
 
 namespace AutoCADMCPPlugin.Commands
 {
-    public class MeasureDistanceCommand : ICommand
+    public class MeasureDistanceCommand : AcadCommand
     {
-        public string MethodName => "measure_distance";
+        public override string MethodName => "measure_distance";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Point3d pt1 = ParsePoint(parameters["point1"], "point1");
             Point3d pt2 = ParsePoint(parameters["point2"], "point2");
@@ -34,11 +34,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class MeasureAreaCommand : ICommand
+    public class MeasureAreaCommand : AcadCommand
     {
-        public string MethodName => "measure_area";
+        public override string MethodName => "measure_area";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -99,11 +99,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class GetBoundingBoxCommand : ICommand
+    public class GetBoundingBoxCommand : AcadCommand
     {
-        public string MethodName => "get_bounding_box";
+        public override string MethodName => "get_bounding_box";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -136,11 +136,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class SelectByWindowCommand : ICommand
+    public class SelectByWindowCommand : AcadCommand
     {
-        public string MethodName => "select_by_window";
+        public override string MethodName => "select_by_window";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -223,11 +223,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class SelectByPropertiesCommand : ICommand
+    public class SelectByPropertiesCommand : AcadCommand
     {
-        public string MethodName => "select_by_properties";
+        public override string MethodName => "select_by_properties";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -299,11 +299,11 @@ namespace AutoCADMCPPlugin.Commands
     /// Search all text entities (DBText, MText, and text inside BlockReferences) for a keyword.
     /// Returns matching text, position, layer, and handle. Case-insensitive.
     /// </summary>
-    public class SearchTextCommand : ICommand
+    public class SearchTextCommand : AcadCommand
     {
-        public string MethodName => "search_text";
+        public override string MethodName => "search_text";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -413,11 +413,11 @@ namespace AutoCADMCPPlugin.Commands
     /// Find entities nearest to a given point. Optionally filter by type/layer.
     /// Returns entities sorted by distance from the point.
     /// </summary>
-    public class FindNearestCommand : ICommand
+    public class FindNearestCommand : AcadCommand
     {
-        public string MethodName => "find_nearest";
+        public override string MethodName => "find_nearest";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -494,11 +494,11 @@ namespace AutoCADMCPPlugin.Commands
     /// <summary>
     /// Measure the distance between two entities (center-to-center or closest approach).
     /// </summary>
-    public class MeasureBetweenCommand : ICommand
+    public class MeasureBetweenCommand : AcadCommand
     {
-        public string MethodName => "measure_between";
+        public override string MethodName => "measure_between";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -568,11 +568,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class FindIntersectionsCommand : ICommand
+    public class FindIntersectionsCommand : AcadCommand
     {
-        public string MethodName => "find_intersections";
+        public override string MethodName => "find_intersections";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");

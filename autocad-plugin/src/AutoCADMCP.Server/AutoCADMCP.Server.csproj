@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!--
+      Self-contained MCP server: one .exe, no Python runtime on the user's
+      machine. Speaks MCP over stdio to the AI client, and JSON-RPC over TCP to
+      the AutoCAD plugin.
+
+      Publish with:
+        dotnet publish -c Release
+      (the runtime identifier and self-contained flag are set below)
+    -->
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>AutoCADMCP.Server</RootNamespace>
+    <AssemblyName>autocad-mcp-server</AssemblyName>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <Version>2.0.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Generated from the Python server's typed signatures by
+         build/generate_tool_schemas.py, so both servers expose the same
+         tool surface without a hand-maintained second copy. -->
+    <EmbeddedResource Include="tools.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.*" />
+  </ItemGroup>
+
+</Project>

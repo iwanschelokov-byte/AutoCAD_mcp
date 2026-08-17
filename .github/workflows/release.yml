@@ -1,0 +1,100 @@
+name: release
+
+# Builds every target, signs, packages an installer, and publishes a GitHub
+# Release. Triggered by pushing a version tag:
+#     git tag v2.0.0 && git push origin v2.0.0
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (without the leading v)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: ver
+        shell: pwsh
+        run: |
+          $v = if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+                 '${{ github.event.inputs.version }}'
+               } else {
+                 '${{ github.ref_name }}' -replace '^v', ''
+               }
+          "version=$v" >> $env:GITHUB_OUTPUT
+          Write-Host "Building version $v"
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Build all targets and stage the bundle
+        shell: pwsh
+        run: ./build/build-all.ps1 -Configuration Release -IncludeNet10
+
+      - name: Verify the built assembly
+        shell: pwsh
+        run: |
+          ./build/verify-assembly.ps1 -TargetFramework net48
+          ./build/verify-assembly.ps1 -TargetFramework net8.0-windows
+
+      - name: Verify tool surface parity
+        run: python build/verify_tool_parity.py
+
+      - name: Sign binaries
+        if: env.AUTOCADMCP_PFX_BASE64 != ''
+        shell: pwsh
+        env:
+          AUTOCADMCP_PFX_BASE64: ${{ secrets.AUTOCADMCP_PFX_BASE64 }}
+          AUTOCADMCP_PFX_PASSWORD: ${{ secrets.AUTOCADMCP_PFX_PASSWORD }}
+        run: |
+          Get-ChildItem autocad-plugin/dist -Recurse -Filter AutoCADMCPPlugin.dll |
+            ForEach-Object { ./build/sign.ps1 -Path $_.FullName }
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup --no-progress -y
+          }
+          & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" installer\AutoCADMCP.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed ($LASTEXITCODE)" }
+
+      - name: Sign installer
+        if: env.AUTOCADMCP_PFX_BASE64 != ''
+        shell: pwsh
+        env:
+          AUTOCADMCP_PFX_BASE64: ${{ secrets.AUTOCADMCP_PFX_BASE64 }}
+          AUTOCADMCP_PFX_PASSWORD: ${{ secrets.AUTOCADMCP_PFX_PASSWORD }}
+        run: |
+          ./build/sign.ps1 -Path "autocad-plugin/dist/AutoCADMCP-Setup-${{ steps.ver.outputs.version }}.exe"
+
+      - name: Package portable bundle
+        shell: pwsh
+        run: |
+          Compress-Archive -Path autocad-plugin/dist/AutoCADMCPPlugin.bundle `
+                           -DestinationPath "autocad-plugin/dist/AutoCADMCPPlugin-bundle-${{ steps.ver.outputs.version }}.zip" `
+                           -Force
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: AutoCAD MCP ${{ steps.ver.outputs.version }}
+          generate_release_notes: true
+          files: |
+            autocad-plugin/dist/AutoCADMCP-Setup-*.exe
+            autocad-plugin/dist/AutoCADMCPPlugin-bundle-*.zip

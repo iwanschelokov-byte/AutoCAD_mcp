@@ -9,38 +9,57 @@ AI-powered AutoCAD automation via the **Model Context Protocol (MCP)**. Enables 
 ## Architecture
 
 ```
-┌─────────────┐     stdio      ┌──────────────────┐     TCP socket      ┌──────────────────┐
-│   Claude /   │ ──── MCP ────▶ │  Python MCP      │ ── JSON-RPC 2.0 ──▶│  C# Plugin       │
-│   AI Client  │◀──────────────│  Server           │◀────────────────── │  (inside AutoCAD) │
-└─────────────┘                └──────────────────┘   localhost:8081    └──────────────────┘
-                                                                              │
-┌──────────────┐                          HTTP / JSON-RPC 2.0                  │
-│   Browser    │ ──────────────────────────────────────────────────────────────▶│
-│   (web app)  │  POST http://127.0.0.1:8082/jsonrpc  (CORS + Chrome PNA ok)   │
-└──────────────┘                                                                │
-                                                                       AutoCAD .NET API
+┌─────────────┐                ┌────────────────────┐
+│  Claude /   │ ─── stdio ───▶ │  MCP server        │
+│  AI Client  │      MCP       │  C# exe  or  Python│ ─┐
+└─────────────┘                └────────────────────┘  │
+                                                        │  TCP JSON-RPC 2.0
+                                                        │  localhost:8081
+┌──────────────┐        HTTP / JSON-RPC 2.0             ▼
+│   Browser    │ ──────────────────────────▶ ┌──────────────────┐
+│   (web app)  │  127.0.0.1:8082/jsonrpc     │  C# Plugin       │
+└──────────────┘  (CORS + Chrome PNA ok)     │ (inside AutoCAD) │
+                                             └──────────────────┘
+                                                        │
+                                                AutoCAD .NET API
 ```
 
 | Component | Language | Location |
 |-----------|----------|----------|
 | **AutoCADMCPPlugin.dll** | C# | `src/AutoCADMCPPlugin/` |
-| **MCP Server** | Python | `src/mcp_server/` |
+| **MCP server (recommended)** | C# | `src/AutoCADMCP.Server/` |
+| **MCP server (alternative)** | Python | `src/mcp_server/` |
 | **Bundle Manifest** | XML | `config/AutoCADMCPPlugin.bundle/` |
+
+### Two MCP servers, same tools
+
+Both expose the identical 186 tools; pick whichever suits your setup.
+
+| | C# server | Python server |
+|---|---|---|
+| Artifact | one self-contained `.exe` | `server.py` |
+| Requires Python on the machine | no | yes (3.10+) |
+| Tool schemas | generated from the Python signatures at build time | inferred by FastMCP |
+| Best for | end users, IT deployment | development, quick edits |
+
+The C# server's schemas are generated from the Python server's typed signatures
+by `build/generate_tool_schemas.py`, so the two surfaces cannot drift — CI fails
+if the generated `tools.json` is stale.
 
 ### How It Works
 
 The C# plugin loads inside AutoCAD as an addin and exposes the same JSON-RPC pipeline over **two transports** simultaneously:
 
-1. **TCP socket on `localhost:8081`** — used by the Python MCP server, which marshals 79 tools over stdio for Claude / Claude Code / Claude Desktop.
+1. **TCP socket on `localhost:8081`** — used by whichever MCP server you run, which marshals the 186 tools over stdio for Claude / Claude Code / Claude Desktop.
 2. **HTTP loopback on `localhost:8082`** — used by browser apps that can't open raw TCP sockets (a `fetch()` call to `http://127.0.0.1:8082/jsonrpc` reaches every command in the registry, with CORS headers + Chrome Private-Network-Access support out of the box).
 
-Both transports route through the same `JsonRpcHandler`, so every command in the registry (`create_line`, `create_table`, `capture_screenshot`, …) is reachable identically from either path. Commands are marshaled to AutoCAD's main UI thread via `Application.Idle` + `DocumentLock`.
+Both transports route through the same `JsonRpcHandler`, so every tool (`create_line`, `create_table`, `capture_screenshot`, …) is reachable identically from either path. Commands are marshaled to AutoCAD's main UI thread via `Application.Idle` + `DocumentLock` — except introspection tools, which answer directly so tool discovery keeps working while AutoCAD is busy.
 
 ### Thread Safety
 
 AutoCAD's .NET API is single-threaded. The plugin uses `Application.Idle` event + `DocumentLock` to safely execute commands from the socket handler threads on the main thread.
 
-## Features — 79 MCP Tools
+## Features — 186 MCP Tools
 
 ### System (6)
 | Tool | Description |
@@ -173,31 +192,159 @@ AutoCAD's .NET API is single-threaded. The plugin uses `Application.Idle` event 
 | `find_nearest` | Find entities nearest to a point (by type/layer, sorted by distance) |
 | `measure_between` | Measure distance between two entities by handle |
 
-## Two Extra Commands, JSON-RPC Only
+### Server Introspection & Safety (3)
+| Tool | Description |
+|------|-------------|
+| `get_capabilities` | Build info, tool counts, destructive-tool list, safety posture (answers even while AutoCAD is modal) |
+| `get_server_options` | Read current read-only / confirmation / audit settings |
+| `set_server_options` | Change and persist the safety posture |
 
-The plugin's command registry holds **80** commands — the 79 MCP tools above plus two text-measurement
-commands that are reachable over TCP/JSON-RPC and the HTTP shim but are deliberately not wrapped as MCP
-tools, because they exist to size tables before drawing them and are of little use to a chat client. This
-is why `list_methods` returns 80 while the MCP server exposes 79.
+### Layouts & Paper Space (15)
+| Tool | Description |
+|------|-------------|
+| `list_layouts` | List sheets with paper size, plot device and scale |
+| `create_layout` / `delete_layout` | Add or remove a layout tab |
+| `rename_layout` / `copy_layout` | Rename or duplicate a layout with its setup |
+| `set_current_layout` | Switch active sheet (`Model` for model space) |
+| `get_page_setup` / `set_page_setup` | Read/configure device, paper size, plot type, scale, rotation, CTB |
+| `list_plot_devices` / `list_paper_sizes` | Discover available plotters and media |
+| `list_viewports` / `create_viewport` | Inspect or add paper-space viewports |
+| `set_viewport_scale` / `lock_viewport` | Set viewport scale (`"1:100"`); lock against zoom |
+| `plot_layout` | Plot a layout to PDF using its page setup |
 
-| Command | Description |
-|---------|-------------|
-| `measure_text` | Bounding box of one text string at a given height + style. SHX glyphs are proportional, so JS estimates miss; this returns the real width AutoCAD will render. |
-| `measure_texts` | Batched variant — one transaction for up to 2000 strings. Use when sizing many cells before drawing. |
+### External References (9)
+| Tool | Description |
+|------|-------------|
+| `attach_xref` | Attach or overlay an external DWG |
+| `list_xrefs` | List xrefs with path, status and reference count |
+| `reload_xref` / `unload_xref` / `detach_xref` | Manage xref load state |
+| `bind_xref` | Bind an xref into the drawing permanently |
+| `set_xref_path` | Repoint a broken or moved xref |
+| `read_external_dwg` | Inspect a DWG **without opening it** (side database) |
+| `batch_query_dwgs` | Sweep a whole folder of DWGs without opening any |
 
-See [Sizing tables to real text widths](#sizing-tables-to-real-text-widths) for a worked example.
+### Block Attributes & Dynamic Blocks (10)
+| Tool | Description |
+|------|-------------|
+| `list_block_attributes` | Attribute definitions declared by a block |
+| `get_attribute_values` | Read attributes of one reference or every reference |
+| `set_attribute_values` | Write attributes by tag; reports unmatched tags |
+| `sync_attributes` | Add attributes added to the definition after insertion (ATTSYNC) |
+| `get_dynamic_block_properties` | Parameters, values and allowed values |
+| `set_dynamic_block_property` | Set a visibility state, length or angle |
+| `rename_block` / `delete_block_definition` | Manage block definitions |
+| `count_block_references` | Per-block insert counts — a quick BOM |
+| `export_block_to_file` | Export a block to its own DWG (WBLOCK) |
+
+### Modify Operations (11)
+| Tool | Description |
+|------|-------------|
+| `break_entity` | Split a curve at points (snapped onto the curve) |
+| `fillet_entities` | Fillet two lines with a tangent arc, trimming both |
+| `polyline_edit` | Open/close, width, elevation, add/remove vertices |
+| `reverse_polyline` | Reverse curve direction |
+| `set_draworder` | Move entities front/back/above/below |
+| `flatten_entities` | Flatten to a single Z elevation |
+| `divide_entity` / `measure_entity` | Place points or blocks along a curve |
+| `create_region` / `create_boundary` | Build regions; trace a boundary (BPOLY) |
+| `overkill` | Delete exact duplicate/overlapping entities |
+
+### 2D Entities & 3D Solids (16)
+| Tool | Description |
+|------|-------------|
+| `create_point` / `create_xline` / `create_ray` | Point and construction geometry |
+| `create_polygon` / `create_donut` / `create_3d_polyline` | Regular polygon, donut, 3D polyline |
+| `create_box` / `create_sphere` / `create_cylinder` | Primitive solids |
+| `create_cone` / `create_wedge` / `create_torus` | More primitive solids |
+| `extrude_profile` / `revolve_profile` | Build solids from closed profiles |
+| `boolean_solids` | Union / subtract / intersect |
+| `get_solid_properties` | Volume, centroid, moments of inertia, bbox |
+
+### Groups, Layer States, Views, UCS (13)
+| Tool | Description |
+|------|-------------|
+| `create_group` / `list_groups` / `add_to_group` / `ungroup` | Named groups |
+| `save_layer_state` / `restore_layer_state` | Capture and restore layer settings |
+| `list_layer_states` / `delete_layer_state` | Manage saved layer states |
+| `create_named_view` / `list_named_views` / `restore_view` | Named views |
+| `list_ucs` / `set_ucs` | User coordinate systems (by name or explicit axes) |
+
+### Drawing Data & Audit (6)
+| Tool | Description |
+|------|-------------|
+| `get_xdata` / `set_xdata` | Read/write extended entity data (auto-registers the app name) |
+| `get_drawing_properties` / `set_drawing_properties` | Title block fields and custom properties |
+| `entity_count_report` | Counts by type and by layer |
+| `audit_drawing` | Empty layers, unused blocks, broken xrefs, zero-length curves |
+
+### Annotation Completion (18)
+| Tool | Description |
+|------|-------------|
+| `create_multileader` | Multileader with arrow, landing and text |
+| `list_mleader_styles` / `create_mleader_style` | Multileader styles |
+| `create_ordinate_dimension` | Ordinate dimension along the X or Y axis |
+| `create_arclength_dimension` | Arc-length dimension |
+| `create_tolerance` | GD&T feature control frame |
+| `edit_dimension_text` | Override dimension text (`<>` embeds the measurement) |
+| `update_dimensions` | Regenerate dimensions, optionally reassigning a style |
+| `list_annotation_scales` / `set_annotation_scale` | Annotation scale (CANNOSCALE) |
+| `add_annotation_scale_to_entity` | Add/remove a scale representation on annotative entities |
+| `get_table_data` / `set_table_cell` | Read a whole table; write single or batched cells |
+| `merge_table_cells` / `list_table_styles` | Merge/unmerge ranges; list styles |
+| `edit_mtext` | Edit existing text or mtext in place |
+| `create_wipeout` | Mask a region behind a polygon |
+| `create_revision_cloud` | Rectangular revision cloud |
+
+### Sheet Sets (4, COM-based)
+| Tool | Description |
+|------|-------------|
+| `get_sheet_set_status` | Probe whether Sheet Set Manager automation is available |
+| `open_sheet_set` | Open a `.dst` and report name, description, sheet count |
+| `list_sheets` | List sheets with number, title, name, description |
+| `close_sheet_set` | Close an open sheet set database |
+
+> Sheet sets have **no managed .NET API** — these go through the `AcSmComponents`
+> COM library via late binding, and are **read-only**. If the COM server is not
+> registered they return `Unsupported` with an explanation rather than failing.
+> Call `get_sheet_set_status` first. This path has not been verified against a
+> live Sheet Set Manager.
 
 ## Supported AutoCAD Versions
 
-| AutoCAD Version | .NET Target | NuGet Package Version |
-|----------------|-------------|----------------------|
-| **2022, 2023, 2024** | .NET Framework 4.8 (`net48`) | AutoCAD.NET 24.2.x |
-| **2025, 2026** | .NET 8 (`net8.0-windows`) | AutoCAD.NET 25.x |
-| **2027** | .NET 10 (`net10.0-windows`) | AutoCAD.NET 26.0.0 |
+| AutoCAD Version | Release Code | .NET Target | NuGet Reference |
+|----------------|--------------|-------------|-----------------|
+| **2021, 2022, 2023, 2024** | R24.0–R24.3 | .NET Framework 4.8 (`net48`) | AutoCAD.NET 24.0.x |
+| **2025, 2026** | R25.0–R25.1 | .NET 8 (`net8.0-windows`) | AutoCAD.NET 25.0.x |
+| **2027** | R26.0 | .NET 10 (`net10.0-windows`) | AutoCAD.NET 26.0.x |
 
-The `net48` and `net8.0-windows` targets are always built. The 2027 target compiles against the `Newtonsoft.Json` that ships inside AutoCAD 2027 — so that the compile-time and run-time signatures match — and is therefore added only when AutoCAD 2027 is present on the build machine; elsewhere the build produces the two older targets instead of failing on a reference it cannot resolve. Point it at a non-default install with `dotnet build ... -p:AutoCADPath2027="D:\...\AutoCAD 2027"`.
+The `net48` leg is compiled against the **oldest** reference assemblies in its ABI
+family (2021), which is what lets one binary load on 2021 through 2024. Building
+against newer refs would break loading on older releases.
 
-The bundle manifest auto-selects the correct DLL by AutoCAD release series (`R24.1`–`R26.0`).
+`net48` and `net8.0-windows` build by default. The 2027 leg is added
+**automatically when AutoCAD 2027 is installed** on the build machine, and can be
+forced on where it is not (CI, for example) with:
+
+```bash
+dotnet build -c Release -p:IncludeNet10=true
+```
+
+One 2027 subtlety worth knowing: AutoCAD 2027 ships its own `Newtonsoft.Json` and
+loads it into the default context. When 2027 is present the build references
+*that* assembly and never copies its own, so compile-time and run-time signatures
+match — otherwise you get a `MissingMethodException` at run time. Point the build
+at a non-default install with `-p:AutoCADPath2027="D:\...\AutoCAD 2027"`.
+
+The bundle manifest (`PackageContents.xml`) declares one `ComponentEntry` per
+range, so AutoCAD auto-selects the right DLL. All version drift is isolated in
+`Core/AcadCompat.cs` — no `#if` anywhere else in the codebase.
+
+**AutoCAD LT is not supported** and cannot be: LT has no `NETLOAD` and cannot load
+.NET plugins at any version. LT 2024+ supports AutoLISP/ActiveX only, which would
+need a separate bridge.
+
+Verticals built on AutoCAD (Civil 3D, Plant 3D, Map 3D, Mechanical, Architecture)
+host the same bundle and work without changes.
 
 ## Installation
 
@@ -517,31 +664,42 @@ autocad-plugin/
     │       ├── ICommand.cs        # Command interface
     │       └── CommandResult.cs   # Result wrapper
     └── mcp_server/                # Python MCP Server
-        ├── server.py              # 79 MCP tools via FastMCP
+        ├── server.py              # 186 MCP tools via FastMCP
         ├── autocad_client.py      # Async TCP client with auto-reconnect
         └── requirements.txt
 ```
 
 ## Adding New Commands
 
-1. Create a class implementing `ICommand` in `Commands/`
-2. It's auto-discovered by `CommandRegistry` — no manual registration needed
+1. Create a class extending `AcadCommand` in `Commands/`
+2. **Register it** in `Core/CommandRegistry.cs` — registration is explicit, not
+   reflection-based, so a new class does nothing until it is registered
 3. Add the corresponding MCP tool in `server.py`
 4. Rebuild and reinstall: `install.bat`
 
 Example:
 
 ```csharp
-public class MyCommand : ICommand
+public class MyCommand : AcadCommand
 {
-    public string MethodName => "my_command";
+    public override string MethodName => "my_command";
 
-    public CommandResult Execute(JObject parameters)
+    public override CommandResult Execute(JObject parameters)
     {
         Document doc = Application.DocumentManager.MdiActiveDocument;
+        if (doc == null) return CommandResult.NoDoc();
+
+        // Forgiving aliases: accepts id | entity_id | handle | object_id
+        string handle = EntityHelper.EntityIdArg(parameters);
+        if (string.IsNullOrWhiteSpace(handle))
+            return CommandResult.BadParam("Parameter 'id' is required");
+
         using (EntityHelper.LockDoc())
         using (Transaction tr = doc.Database.TransactionManager.StartTransaction())
         {
+            ObjectId id = EntityHelper.ResolveHandle(doc.Database, handle);
+            if (id.IsNull) return CommandResult.NotFound($"Entity '{handle}' not found");
+
             // Your AutoCAD API code here
             tr.Commit();
         }
@@ -549,6 +707,47 @@ public class MyCommand : ICommand
     }
 }
 ```
+
+Then in `Core/CommandRegistry.cs`:
+
+```csharp
+Register(new MyCommand());
+```
+
+**Read/write/destructive classification is automatic.** `CommandClassifier` infers
+it from the method name (`list_`/`get_`/`measure_` → read; `erase_`/`delete_`/
+`purge_` → destructive). Override `IsWrite` or `IsDestructive` on your class when
+the name is misleading — e.g. `measure_entity` reads as read-only by prefix but
+actually places markers, so it overrides `IsWrite => true`.
+
+**Commands that never touch the AutoCAD API** (introspection, settings) should
+extend `DirectCommand` instead. Those run on the socket thread and stay responsive
+even while AutoCAD is busy or showing a modal dialog.
+
+## Safety Model
+
+Two gates run before any command executes:
+
+| Gate | Behaviour | Default |
+|------|-----------|---------|
+| **Read-only mode** | Refuses every drawing-modifying tool with `errorCode: ReadOnly` | off |
+| **Destructive confirmation** | `erase_*`/`delete_*`/`purge_*`/`overkill`/`ungroup`/`detach_*` require `"__confirm": true` | **on** |
+
+Toggle both with `set_server_options`. There are 10 destructive tools; run
+`get_capabilities` for the current list.
+
+Every call is appended to an audit log at
+`%APPDATA%\AutoCADMCP\activity.jsonl` (one JSON object per line, carrying
+user/machine/drawing/duration/errorCode). Disable with
+`set_server_options({"audit_log": false})`.
+
+## Error Codes
+
+Failures carry a typed code in `error.data.errorCode` so a client can branch on
+the failure kind instead of matching error text:
+
+`NotFound` · `InvalidParam` · `ReadOnly` · `NoDocument` · `NeedsConfirm` ·
+`Unsupported` · `TxnFailed` · `Timeout` · `Internal`
 
 ## License
 

@@ -12,11 +12,11 @@ using static AutoCADMCPPlugin.Commands.EntityHelper;
 
 namespace AutoCADMCPPlugin.Commands
 {
-    public class ListBlocksCommand : ICommand
+    public class ListBlocksCommand : AcadCommand
     {
-        public string MethodName => "list_blocks";
+        public override string MethodName => "list_blocks";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -82,11 +82,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class InsertBlockCommand : ICommand
+    public class InsertBlockCommand : AcadCommand
     {
-        public string MethodName => "insert_block";
+        public override string MethodName => "insert_block";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -171,11 +171,11 @@ namespace AutoCADMCPPlugin.Commands
     /// Uses Database.Insert() / WblockCloneObjects() to properly transfer blocks
     /// without the issues of -INSERT via SendStringToExecute.
     /// </summary>
-    public class ImportBlockCommand : ICommand
+    public class ImportBlockCommand : AcadCommand
     {
-        public string MethodName => "import_block";
+        public override string MethodName => "import_block";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");

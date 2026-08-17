@@ -10,9 +10,9 @@ using Application = Autodesk.AutoCAD.ApplicationServices.Application;
 
 namespace AutoCADMCPPlugin.Commands
 {
-    public class CaptureScreenshotCommand : ICommand
+    public class CaptureScreenshotCommand : AcadCommand
     {
-        public string MethodName => "capture_screenshot";
+        public override string MethodName => "capture_screenshot";
 
         [DllImport("user32.dll")]
         private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
@@ -35,7 +35,7 @@ namespace AutoCADMCPPlugin.Commands
             public int Left, Top, Right, Bottom;
         }
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             try
             {

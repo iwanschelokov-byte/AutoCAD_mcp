@@ -12,11 +12,11 @@ namespace AutoCADMCPPlugin.Commands
     /// <summary>
     /// Set an AutoCAD system variable (e.g., DIMTXT, DIMASZ, LTSCALE).
     /// </summary>
-    public class SetSystemVariableCommand : ICommand
+    public class SetSystemVariableCommand : AcadCommand
     {
-        public string MethodName => "set_system_variable";
+        public override string MethodName => "set_system_variable";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             string name = parameters["name"]?.ToString();
             if (string.IsNullOrEmpty(name))
@@ -71,11 +71,11 @@ namespace AutoCADMCPPlugin.Commands
     /// <summary>
     /// Get an AutoCAD system variable value.
     /// </summary>
-    public class GetSystemVariableCommand : ICommand
+    public class GetSystemVariableCommand : AcadCommand
     {
-        public string MethodName => "get_system_variable";
+        public override string MethodName => "get_system_variable";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             string name = parameters["name"]?.ToString();
             if (string.IsNullOrEmpty(name))
@@ -120,11 +120,11 @@ namespace AutoCADMCPPlugin.Commands
     /// Example (draw a circle): { "command": "_.CIRCLE", "inputs": ["100,100", "40"] }
     /// or simply { "command": "_.CIRCLE 100,100 40" }.
     /// </summary>
-    public class ExecuteCommandCommand : ICommand
+    public class ExecuteCommandCommand : AcadCommand
     {
-        public string MethodName => "execute_command";
+        public override string MethodName => "execute_command";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             string command = parameters["command"]?.ToString()?.Trim();
             if (string.IsNullOrWhiteSpace(command))

@@ -10,11 +10,11 @@ using static AutoCADMCPPlugin.Commands.EntityHelper;
 
 namespace AutoCADMCPPlugin.Commands
 {
-    public class DrawingNewCommand : ICommand
+    public class DrawingNewCommand : AcadCommand
     {
-        public string MethodName => "drawing_new";
+        public override string MethodName => "drawing_new";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             string templatePath = parameters["template"]?.ToString();
 
@@ -38,11 +38,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class DrawingOpenCommand : ICommand
+    public class DrawingOpenCommand : AcadCommand
     {
-        public string MethodName => "drawing_open";
+        public override string MethodName => "drawing_open";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             string path = parameters["path"]?.ToString();
             if (string.IsNullOrEmpty(path))
@@ -93,11 +93,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class DrawingSaveCommand : ICommand
+    public class DrawingSaveCommand : AcadCommand
     {
-        public string MethodName => "drawing_save";
+        public override string MethodName => "drawing_save";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null)
@@ -181,11 +181,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class DrawingInfoCommand : ICommand
+    public class DrawingInfoCommand : AcadCommand
     {
-        public string MethodName => "drawing_info";
+        public override string MethodName => "drawing_info";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null)

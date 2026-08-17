@@ -1568,6 +1568,1270 @@ async def create_table_from_excel(
 
 
 # =============================================================================
+# Text Measurement (ground-truth bounding boxes from AutoCAD itself)
+# =============================================================================
+
+@mcp.tool()
+async def measure_text(
+    text: str,
+    height: float,
+    style: str = "",
+    width_factor: float = 0.0,
+    oblique: float = 0.0,
+) -> str:
+    """Measure the exact bounding box AutoCAD would give a single-line text string.
+
+    Returns width/height in drawing units. Use this before placing text to lay
+    out tables, columns or labels without overlap, instead of estimating.
+    """
+    params: dict = {"text": text, "height": height}
+    if style:
+        params["style"] = style
+    if width_factor > 0:
+        params["width_factor"] = width_factor
+    if oblique:
+        params["oblique"] = oblique
+    return await _call("measure_text", params)
+
+
+@mcp.tool()
+async def measure_texts(items: list[dict]) -> str:
+    """Measure many text strings in one round-trip.
+
+    Each item is {"text": str, "height": float, optional "style"/"width_factor"}.
+    Far faster than calling measure_text repeatedly when laying out a table.
+    """
+    return await _call("measure_texts", {"items": items})
+
+
+# =============================================================================
+# Server Introspection & Safety
+# =============================================================================
+
+@mcp.tool()
+async def get_capabilities() -> str:
+    """Report what this plugin build supports: tool count, AutoCAD version range,
+    .NET target, which tools are destructive, and the current safety settings.
+
+    Answers instantly even when AutoCAD is busy or showing a modal dialog.
+    """
+    return await _call("get_capabilities")
+
+
+@mcp.tool()
+async def get_server_options() -> str:
+    """Read the current safety posture (read-only mode, destructive confirmation, audit log)."""
+    return await _call("get_server_options")
+
+
+@mcp.tool()
+async def set_server_options(
+    read_only: bool | None = None,
+    confirm_destructive: bool | None = None,
+    audit_log: bool | None = None,
+) -> str:
+    """Change and persist the safety posture.
+
+    read_only=True refuses every drawing-modifying tool (safe inspection mode).
+    confirm_destructive=True (default) makes erase/delete/purge tools require
+    __confirm=true. audit_log toggles the JSONL activity log.
+    """
+    params: dict = {}
+    if read_only is not None:
+        params["read_only"] = read_only
+    if confirm_destructive is not None:
+        params["confirm_destructive"] = confirm_destructive
+    if audit_log is not None:
+        params["audit_log"] = audit_log
+    return await _call("set_server_options", params)
+
+
+# =============================================================================
+# Layouts & Paper Space
+# =============================================================================
+
+@mcp.tool()
+async def list_layouts(include_model: bool = False) -> str:
+    """List the drawing's layouts (sheets) with paper size, plot device and scale info."""
+    return await _call("list_layouts", {"include_model": include_model})
+
+
+@mcp.tool()
+async def create_layout(name: str, set_current: bool = False) -> str:
+    """Create a new layout (sheet) tab."""
+    return await _call("create_layout", {"name": name, "set_current": set_current})
+
+
+@mcp.tool()
+async def delete_layout(name: str, __confirm: bool = False) -> str:
+    """Delete a layout. Destructive — pass __confirm=true to proceed."""
+    return await _call("delete_layout", {"name": name, "__confirm": __confirm})
+
+
+@mcp.tool()
+async def rename_layout(name: str, new_name: str) -> str:
+    """Rename a layout."""
+    return await _call("rename_layout", {"name": name, "new_name": new_name})
+
+
+@mcp.tool()
+async def set_current_layout(name: str) -> str:
+    """Switch the active layout/sheet (use 'Model' for model space)."""
+    return await _call("set_current_layout", {"name": name})
+
+
+@mcp.tool()
+async def copy_layout(name: str, new_name: str) -> str:
+    """Duplicate a layout, including its page setup and viewports."""
+    return await _call("copy_layout", {"name": name, "new_name": new_name})
+
+
+@mcp.tool()
+async def get_page_setup(layout: str = "") -> str:
+    """Read a layout's page setup: device, paper size, plot type, scale, style table."""
+    params: dict = {}
+    if layout:
+        params["layout"] = layout
+    return await _call("get_page_setup", params)
+
+
+@mcp.tool()
+async def set_page_setup(
+    layout: str = "",
+    device: str = "",
+    paper_size: str = "",
+    plot_type: str = "",
+    scale: str = "",
+    scale_to_fit: bool = False,
+    centered: bool | None = None,
+    rotation: str = "",
+    plot_style_table: str = "",
+) -> str:
+    """Configure a layout's page setup before plotting.
+
+    device: plotter/printer name (see list_plot_devices).
+    paper_size: canonical media name (see list_paper_sizes).
+    plot_type: Display, Extents, Limits, View, Window or Layout.
+    scale: "1:100" style ratio; or set scale_to_fit=true.
+    rotation: 0, 90, 180 or 270.
+    """
+    params: dict = {}
+    for k, v in (
+        ("layout", layout), ("device", device), ("paper_size", paper_size),
+        ("plot_type", plot_type), ("scale", scale), ("rotation", rotation),
+        ("plot_style_table", plot_style_table),
+    ):
+        if v:
+            params[k] = v
+    if scale_to_fit:
+        params["scale_to_fit"] = True
+    if centered is not None:
+        params["centered"] = centered
+    return await _call("set_page_setup", params)
+
+
+@mcp.tool()
+async def list_plot_devices() -> str:
+    """List available plotters/printers configured in AutoCAD.
+
+    Superseded by `plot_devices`, which also returns plot style tables and each
+    device's paper sizes with printable areas and margins. Prefer that one.
+    """
+    return await _call("list_plot_devices")
+
+
+@mcp.tool()
+async def list_paper_sizes(layout: str = "", device: str = "") -> str:
+    """List paper sizes available for a plot device (canonical + display names).
+
+    Scoped to a layout. For a device-oriented listing that also reports printable
+    areas and margins, use `plot_devices`.
+    """
+    params: dict = {}
+    if layout:
+        params["layout"] = layout
+    if device:
+        params["device"] = device
+    return await _call("list_paper_sizes", params)
+
+
+@mcp.tool()
+async def list_viewports(layout: str = "") -> str:
+    """List paper-space viewports on a layout with their size, scale and lock state."""
+    params: dict = {}
+    if layout:
+        params["layout"] = layout
+    return await _call("list_viewports", params)
+
+
+@mcp.tool()
+async def create_viewport(
+    center: list[float],
+    width: float,
+    height: float,
+    layout: str = "",
+    scale: str = "",
+    view_center: list[float] | None = None,
+    locked: bool = False,
+    layer: str = "",
+) -> str:
+    """Create a paper-space viewport on a layout.
+
+    center/width/height are in paper space units. scale like "1:100" sets the
+    model-to-paper ratio; view_center pans the model view inside the viewport.
+    """
+    params: dict = {"center": center, "width": width, "height": height}
+    if layout:
+        params["layout"] = layout
+    if scale:
+        params["scale"] = scale
+    if view_center:
+        params["view_center"] = view_center
+    if locked:
+        params["locked"] = True
+    if layer:
+        params["layer"] = layer
+    return await _call("create_viewport", params)
+
+
+@mcp.tool()
+async def set_viewport_scale(id: str, scale: str) -> str:
+    """Set a viewport's scale, e.g. "1:100". Temporarily unlocks a locked viewport."""
+    return await _call("set_viewport_scale", {"id": id, "scale": scale})
+
+
+@mcp.tool()
+async def lock_viewport(id: str, locked: bool = True) -> str:
+    """Lock or unlock a viewport so its scale cannot be changed by zooming."""
+    return await _call("lock_viewport", {"id": id, "locked": locked})
+
+
+@mcp.tool()
+async def plot_layout(output_path: str, layout: str = "") -> str:
+    """Set a layout current and queue an EXPORTPDF for it.
+
+    Prefer `plot_to_pdf`: it waits for the PDF to actually be written and can trim
+    the page to a plotted window. This tool returns as soon as the command is
+    queued, so the file may not exist yet when it replies.
+    """
+    params: dict = {"output_path": output_path}
+    if layout:
+        params["layout"] = layout
+    return await _call("plot_layout", params)
+
+
+# =============================================================================
+# External References (Xrefs)
+# =============================================================================
+
+@mcp.tool()
+async def attach_xref(
+    path: str,
+    name: str = "",
+    position: list[float] | None = None,
+    scale: float = 1.0,
+    rotation: float = 0.0,
+    overlay: bool = False,
+    layer: str = "",
+) -> str:
+    """Attach an external DWG as an xref and place a reference to it.
+
+    overlay=True attaches as an overlay (not nested into drawings that xref this one).
+    """
+    params: dict = {"path": path, "scale": scale, "rotation": rotation, "overlay": overlay}
+    if name:
+        params["name"] = name
+    if position:
+        params["position"] = position
+    if layer:
+        params["layer"] = layer
+    return await _call("attach_xref", params)
+
+
+@mcp.tool()
+async def list_xrefs() -> str:
+    """List attached xrefs with path, load status, overlay flag and reference count."""
+    return await _call("list_xrefs")
+
+
+@mcp.tool()
+async def reload_xref(name: str) -> str:
+    """Reload an xref to pick up changes made to the source DWG."""
+    return await _call("reload_xref", {"name": name})
+
+
+@mcp.tool()
+async def unload_xref(name: str) -> str:
+    """Unload an xref (keeps the attachment, hides the geometry)."""
+    return await _call("unload_xref", {"name": name})
+
+
+@mcp.tool()
+async def detach_xref(name: str, __confirm: bool = False) -> str:
+    """Detach an xref completely. Destructive — pass __confirm=true to proceed."""
+    return await _call("detach_xref", {"name": name, "__confirm": __confirm})
+
+
+@mcp.tool()
+async def bind_xref(name: str, insert_bind: bool = False) -> str:
+    """Bind an xref into the drawing, making its geometry permanent.
+
+    insert_bind=True merges names like INSERT; False keeps them prefixed.
+    """
+    return await _call("bind_xref", {"name": name, "insert_bind": insert_bind})
+
+
+@mcp.tool()
+async def set_xref_path(name: str, path: str, reload: bool = True) -> str:
+    """Repoint a broken or moved xref at a new file path."""
+    return await _call("set_xref_path", {"name": name, "path": path, "reload": reload})
+
+
+@mcp.tool()
+async def read_external_dwg(
+    path: str,
+    include_layers: bool = True,
+    include_blocks: bool = True,
+    include_layouts: bool = True,
+    include_entity_counts: bool = True,
+) -> str:
+    """Inspect a DWG file WITHOUT opening it in AutoCAD.
+
+    Reads it as a side database and reports layers, blocks, xrefs, layouts and
+    entity counts. Use this to check a drawing before opening it.
+    """
+    return await _call("read_external_dwg", {
+        "path": path,
+        "include_layers": include_layers,
+        "include_blocks": include_blocks,
+        "include_layouts": include_layouts,
+        "include_entity_counts": include_entity_counts,
+    })
+
+
+@mcp.tool()
+async def batch_query_dwgs(
+    folder: str,
+    recursive: bool = False,
+    limit: int = 200,
+    include_layers: bool = False,
+    include_blocks: bool = False,
+    include_layouts: bool = True,
+    include_entity_counts: bool = False,
+) -> str:
+    """Scan a folder of DWG files without opening any of them.
+
+    Ideal for audits: "which drawings use layer X", "how many sheets per file".
+    Reports which files failed to read rather than aborting the sweep.
+    """
+    return await _call("batch_query_dwgs", {
+        "folder": folder,
+        "recursive": recursive,
+        "limit": limit,
+        "include_layers": include_layers,
+        "include_blocks": include_blocks,
+        "include_layouts": include_layouts,
+        "include_entity_counts": include_entity_counts,
+    })
+
+
+# =============================================================================
+# Block Attributes & Dynamic Blocks
+# =============================================================================
+
+@mcp.tool()
+async def list_block_attributes(name: str) -> str:
+    """List the attribute definitions declared by a block (tags, prompts, defaults)."""
+    return await _call("list_block_attributes", {"name": name})
+
+
+@mcp.tool()
+async def get_attribute_values(id: str = "", name: str = "") -> str:
+    """Read attribute values.
+
+    Pass id for one block reference, or name to read every reference of that
+    block (title blocks, door tags, equipment schedules).
+    """
+    params: dict = {}
+    if id:
+        params["id"] = id
+    if name:
+        params["name"] = name
+    return await _call("get_attribute_values", params)
+
+
+@mcp.tool()
+async def set_attribute_values(id: str, attributes: dict) -> str:
+    """Set attribute values on one block reference, as {"TAG": "value"}.
+
+    Reports which tags were updated and which were not found on the block.
+    """
+    return await _call("set_attribute_values", {"id": id, "attributes": attributes})
+
+
+@mcp.tool()
+async def sync_attributes(name: str) -> str:
+    """Add attributes to existing block references that were added to the block
+    definition after they were inserted (equivalent to ATTSYNC)."""
+    return await _call("sync_attributes", {"name": name})
+
+
+@mcp.tool()
+async def get_dynamic_block_properties(id: str) -> str:
+    """List a dynamic block reference's parameters, current values and allowed values."""
+    return await _call("get_dynamic_block_properties", {"id": id})
+
+
+@mcp.tool()
+async def set_dynamic_block_property(id: str, property: str, value: str) -> str:
+    """Set one dynamic block parameter (e.g. a visibility state, length or angle)."""
+    return await _call("set_dynamic_block_property",
+                       {"id": id, "property": property, "value": value})
+
+
+@mcp.tool()
+async def rename_block(name: str, new_name: str) -> str:
+    """Rename a block definition."""
+    return await _call("rename_block", {"name": name, "new_name": new_name})
+
+
+@mcp.tool()
+async def delete_block_definition(name: str, __confirm: bool = False) -> str:
+    """Delete an unused block definition. Refuses if references still exist.
+    Destructive — pass __confirm=true to proceed."""
+    return await _call("delete_block_definition", {"name": name, "__confirm": __confirm})
+
+
+@mcp.tool()
+async def count_block_references(name: str = "") -> str:
+    """Count how many times each block is inserted — a quick bill of materials.
+    Pass name to count one block only."""
+    params: dict = {}
+    if name:
+        params["name"] = name
+    return await _call("count_block_references", params)
+
+
+@mcp.tool()
+async def export_block_to_file(name: str, path: str) -> str:
+    """Export a block definition to its own DWG file (WBLOCK)."""
+    return await _call("export_block_to_file", {"name": name, "path": path})
+
+
+# =============================================================================
+# Modify Operations
+# =============================================================================
+
+@mcp.tool()
+async def break_entity(id: str, points: list[list[float]]) -> str:
+    """Split a curve at one or more points, replacing it with the resulting pieces.
+
+    Points are snapped onto the curve, so approximate coordinates are fine.
+    """
+    return await _call("break_entity", {"id": id, "points": points})
+
+
+@mcp.tool()
+async def reverse_polyline(id: str) -> str:
+    """Reverse a curve's direction (start and end swap)."""
+    return await _call("reverse_polyline", {"id": id})
+
+
+@mcp.tool()
+async def polyline_edit(
+    id: str,
+    closed: bool | None = None,
+    width: float | None = None,
+    elevation: float | None = None,
+    add_vertex: list[float] | None = None,
+    index: int | None = None,
+    remove_vertex: int | None = None,
+) -> str:
+    """Edit a polyline: open/close it, set constant width or elevation, or add
+    and remove vertices."""
+    params: dict = {"id": id}
+    if closed is not None:
+        params["closed"] = closed
+    if width is not None:
+        params["width"] = width
+    if elevation is not None:
+        params["elevation"] = elevation
+    if add_vertex is not None:
+        params["add_vertex"] = add_vertex
+    if index is not None:
+        params["index"] = index
+    if remove_vertex is not None:
+        params["remove_vertex"] = remove_vertex
+    return await _call("polyline_edit", params)
+
+
+@mcp.tool()
+async def set_draworder(ids: list[str], position: str = "top", reference_id: str = "") -> str:
+    """Change draw order so entities render in front of or behind others.
+
+    position: top, bottom, above or below. above/below also need reference_id.
+    """
+    params: dict = {"ids": ids, "position": position}
+    if reference_id:
+        params["reference_id"] = reference_id
+    return await _call("set_draworder", params)
+
+
+@mcp.tool()
+async def flatten_entities(ids: list[str] | None = None, z: float = 0.0) -> str:
+    """Flatten entities to a single Z elevation. Omit ids to flatten all of model space."""
+    params: dict = {"z": z}
+    if ids:
+        params["ids"] = ids
+    return await _call("flatten_entities", params)
+
+
+@mcp.tool()
+async def divide_entity(id: str, segments: int, block: str = "", layer: str = "") -> str:
+    """Place markers dividing a curve into N equal segments (AutoCAD DIVIDE).
+
+    Places points by default, or copies of a block if block is given.
+    """
+    params: dict = {"id": id, "segments": segments}
+    if block:
+        params["block"] = block
+    if layer:
+        params["layer"] = layer
+    return await _call("divide_entity", params)
+
+
+@mcp.tool()
+async def measure_entity(id: str, interval: float, block: str = "", layer: str = "") -> str:
+    """Place markers at a fixed interval along a curve (AutoCAD MEASURE)."""
+    params: dict = {"id": id, "interval": interval}
+    if block:
+        params["block"] = block
+    if layer:
+        params["layer"] = layer
+    return await _call("measure_entity", params)
+
+
+@mcp.tool()
+async def create_region(ids: list[str], erase_source: bool = False, layer: str = "") -> str:
+    """Build region(s) from closed loops of curves — the input for extrude/revolve."""
+    params: dict = {"ids": ids, "erase_source": erase_source}
+    if layer:
+        params["layer"] = layer
+    return await _call("create_region", params)
+
+
+@mcp.tool()
+async def create_boundary(point: list[float], detect_islands: bool = True, layer: str = "") -> str:
+    """Trace a closed boundary polyline around a point (AutoCAD BPOLY).
+
+    The point must sit inside a fully enclosed area.
+    """
+    params: dict = {"point": point, "detect_islands": detect_islands}
+    if layer:
+        params["layer"] = layer
+    return await _call("create_boundary", params)
+
+
+@mcp.tool()
+async def fillet_entities(id1: str, id2: str, radius: float) -> str:
+    """Fillet two lines with a tangent arc, trimming both back to the tangent points.
+
+    Currently supports two Line entities; use execute_command('FILLET') for other types.
+    """
+    return await _call("fillet_entities", {"id1": id1, "id2": id2, "radius": radius})
+
+
+@mcp.tool()
+async def overkill(tolerance: float = 1e-6, ignore_layer: bool = False,
+                   __confirm: bool = False) -> str:
+    """Delete exact duplicate/overlapping entities in model space (AutoCAD OVERKILL).
+
+    Compares lines, circles, arcs, points and polylines. Destructive — pass
+    __confirm=true to proceed.
+    """
+    return await _call("overkill", {
+        "tolerance": tolerance, "ignore_layer": ignore_layer, "__confirm": __confirm,
+    })
+
+
+# =============================================================================
+# Additional 2D Entities
+# =============================================================================
+
+@mcp.tool()
+async def create_point(position: list[float], layer: str = "", color: int = -1) -> str:
+    """Create a point entity."""
+    params: dict = {"position": position}
+    if layer:
+        params["layer"] = layer
+    if color >= 0:
+        params["color"] = color
+    return await _call("create_point", params)
+
+
+@mcp.tool()
+async def create_xline(point: list[float], through: list[float] | None = None,
+                       angle: float = 0.0, layer: str = "") -> str:
+    """Create an infinite construction line through a point, by angle or a second point."""
+    params: dict = {"point": point, "angle": angle}
+    if through:
+        params["through"] = through
+    if layer:
+        params["layer"] = layer
+    return await _call("create_xline", params)
+
+
+@mcp.tool()
+async def create_ray(point: list[float], through: list[float] | None = None,
+                     angle: float = 0.0, layer: str = "") -> str:
+    """Create a ray (semi-infinite line) from a point."""
+    params: dict = {"point": point, "angle": angle}
+    if through:
+        params["through"] = through
+    if layer:
+        params["layer"] = layer
+    return await _call("create_ray", params)
+
+
+@mcp.tool()
+async def create_polygon(center: list[float], sides: int, radius: float,
+                         mode: str = "inscribed", rotation: float = 0.0,
+                         layer: str = "", color: int = -1) -> str:
+    """Create a regular polygon. mode: inscribed (radius to vertex) or circumscribed."""
+    params: dict = {"center": center, "sides": sides, "radius": radius,
+                    "mode": mode, "rotation": rotation}
+    if layer:
+        params["layer"] = layer
+    if color >= 0:
+        params["color"] = color
+    return await _call("create_polygon", params)
+
+
+@mcp.tool()
+async def create_donut(center: list[float], outer_diameter: float, inner_diameter: float,
+                       layer: str = "", color: int = -1) -> str:
+    """Create a donut (filled annulus). inner_diameter=0 gives a filled dot."""
+    params: dict = {"center": center, "outer_diameter": outer_diameter,
+                    "inner_diameter": inner_diameter}
+    if layer:
+        params["layer"] = layer
+    if color >= 0:
+        params["color"] = color
+    return await _call("create_donut", params)
+
+
+@mcp.tool()
+async def create_3d_polyline(points: list[list[float]], closed: bool = False,
+                             layer: str = "") -> str:
+    """Create a 3D polyline through [x,y,z] points."""
+    params: dict = {"points": points, "closed": closed}
+    if layer:
+        params["layer"] = layer
+    return await _call("create_3d_polyline", params)
+
+
+# =============================================================================
+# 3D Solids
+# =============================================================================
+
+@mcp.tool()
+async def create_box(center: list[float], length: float, width: float, height: float,
+                     layer: str = "") -> str:
+    """Create a 3D box solid centred on a point."""
+    params: dict = {"center": center, "length": length, "width": width, "height": height}
+    if layer:
+        params["layer"] = layer
+    return await _call("create_box", params)
+
+
+@mcp.tool()
+async def create_sphere(center: list[float], radius: float, layer: str = "") -> str:
+    """Create a 3D sphere solid."""
+    params: dict = {"center": center, "radius": radius}
+    if layer:
+        params["layer"] = layer
+    return await _call("create_sphere", params)
+
+
+@mcp.tool()
+async def create_cylinder(center: list[float], radius: float, height: float,
+                          layer: str = "") -> str:
+    """Create a 3D cylinder solid centred on a point."""
+    params: dict = {"center": center, "radius": radius, "height": height}
+    if layer:
+        params["layer"] = layer
+    return await _call("create_cylinder", params)
+
+
+@mcp.tool()
+async def create_cone(center: list[float], radius: float, height: float,
+                      top_radius: float = 0.0, layer: str = "") -> str:
+    """Create a 3D cone; top_radius > 0 makes a truncated cone (frustum)."""
+    params: dict = {"center": center, "radius": radius, "height": height,
+                    "top_radius": top_radius}
+    if layer:
+        params["layer"] = layer
+    return await _call("create_cone", params)
+
+
+@mcp.tool()
+async def create_wedge(center: list[float], length: float, width: float, height: float,
+                       layer: str = "") -> str:
+    """Create a 3D wedge solid."""
+    params: dict = {"center": center, "length": length, "width": width, "height": height}
+    if layer:
+        params["layer"] = layer
+    return await _call("create_wedge", params)
+
+
+@mcp.tool()
+async def create_torus(center: list[float], major_radius: float, minor_radius: float,
+                       layer: str = "") -> str:
+    """Create a 3D torus solid."""
+    params: dict = {"center": center, "major_radius": major_radius,
+                    "minor_radius": minor_radius}
+    if layer:
+        params["layer"] = layer
+    return await _call("create_torus", params)
+
+
+@mcp.tool()
+async def extrude_profile(ids: list[str], height: float, taper_angle: float = 0.0,
+                          erase_source: bool = True) -> str:
+    """Extrude closed profile curves into a 3D solid."""
+    return await _call("extrude_profile", {
+        "ids": ids, "height": height, "taper_angle": taper_angle,
+        "erase_source": erase_source,
+    })
+
+
+@mcp.tool()
+async def revolve_profile(ids: list[str], axis_point: list[float],
+                          axis_direction: list[float] | None = None,
+                          angle: float = 360.0, erase_source: bool = True) -> str:
+    """Revolve closed profile curves around an axis into a 3D solid."""
+    params: dict = {"ids": ids, "axis_point": axis_point, "angle": angle,
+                    "erase_source": erase_source}
+    if axis_direction:
+        params["axis_direction"] = axis_direction
+    return await _call("revolve_profile", params)
+
+
+@mcp.tool()
+async def boolean_solids(target: str, others: list[str], operation: str = "union") -> str:
+    """Combine 3D solids. operation: union, subtract or intersect.
+
+    The result is written into target; the other solids are consumed.
+    """
+    return await _call("boolean_solids",
+                       {"target": target, "others": others, "operation": operation})
+
+
+@mcp.tool()
+async def get_solid_properties(id: str) -> str:
+    """Get a 3D solid's volume, centroid, moments of inertia and bounding box."""
+    return await _call("get_solid_properties", {"id": id})
+
+
+# =============================================================================
+# Groups, Layer States, Views, UCS
+# =============================================================================
+
+@mcp.tool()
+async def create_group(name: str, ids: list[str], description: str = "") -> str:
+    """Create a named group from entities so they select together."""
+    params: dict = {"name": name, "ids": ids}
+    if description:
+        params["description"] = description
+    return await _call("create_group", params)
+
+
+@mcp.tool()
+async def list_groups() -> str:
+    """List named groups and their member counts."""
+    return await _call("list_groups")
+
+
+@mcp.tool()
+async def add_to_group(name: str, ids: list[str], remove: bool = False) -> str:
+    """Add entities to a group, or remove them with remove=true."""
+    return await _call("add_to_group", {"name": name, "ids": ids, "remove": remove})
+
+
+@mcp.tool()
+async def ungroup(name: str, __confirm: bool = False) -> str:
+    """Remove a group definition; its entities stay in the drawing.
+    Destructive — pass __confirm=true to proceed."""
+    return await _call("ungroup", {"name": name, "__confirm": __confirm})
+
+
+@mcp.tool()
+async def save_layer_state(name: str, description: str = "", overwrite: bool = False) -> str:
+    """Save current layer visibility/colour/lock settings as a named layer state."""
+    params: dict = {"name": name, "overwrite": overwrite}
+    if description:
+        params["description"] = description
+    return await _call("save_layer_state", params)
+
+
+@mcp.tool()
+async def restore_layer_state(name: str) -> str:
+    """Restore a previously saved layer state."""
+    return await _call("restore_layer_state", {"name": name})
+
+
+@mcp.tool()
+async def list_layer_states() -> str:
+    """List saved layer states."""
+    return await _call("list_layer_states")
+
+
+@mcp.tool()
+async def delete_layer_state(name: str, __confirm: bool = False) -> str:
+    """Delete a saved layer state. Destructive — pass __confirm=true to proceed."""
+    return await _call("delete_layer_state", {"name": name, "__confirm": __confirm})
+
+
+@mcp.tool()
+async def create_named_view(name: str, min: list[float], max: list[float]) -> str:
+    """Save a named view from a rectangular window (min and max corners)."""
+    return await _call("create_named_view", {"name": name, "min": min, "max": max})
+
+
+@mcp.tool()
+async def list_named_views() -> str:
+    """List saved named views."""
+    return await _call("list_named_views")
+
+
+@mcp.tool()
+async def restore_view(name: str) -> str:
+    """Restore a saved named view in the active viewport."""
+    return await _call("restore_view", {"name": name})
+
+
+@mcp.tool()
+async def list_ucs() -> str:
+    """List named user coordinate systems."""
+    return await _call("list_ucs")
+
+
+@mcp.tool()
+async def set_ucs(name: str = "", origin: list[float] | None = None,
+                  x_axis: list[float] | None = None, y_axis: list[float] | None = None,
+                  save_as: str = "") -> str:
+    """Set the active UCS.
+
+    Pass name to activate a saved UCS ('World' resets), or origin (+ optional
+    x_axis/y_axis) to define one, optionally saving it as save_as.
+    """
+    params: dict = {}
+    if name:
+        params["name"] = name
+    if origin:
+        params["origin"] = origin
+    if x_axis:
+        params["x_axis"] = x_axis
+    if y_axis:
+        params["y_axis"] = y_axis
+    if save_as:
+        params["save_as"] = save_as
+    return await _call("set_ucs", params)
+
+
+# =============================================================================
+# Drawing Data & Audit
+# =============================================================================
+
+@mcp.tool()
+async def get_xdata(id: str, app_name: str = "") -> str:
+    """Read extended entity data (XData) attached to an entity."""
+    params: dict = {"id": id}
+    if app_name:
+        params["app_name"] = app_name
+    return await _call("get_xdata", params)
+
+
+@mcp.tool()
+async def set_xdata(id: str, app_name: str, values: list) -> str:
+    """Attach extended entity data (XData) to an entity under an application name.
+
+    Registers the application name automatically. Useful for tagging entities
+    with your own metadata that survives in the DWG.
+    """
+    return await _call("set_xdata", {"id": id, "app_name": app_name, "values": values})
+
+
+@mcp.tool()
+async def get_drawing_properties() -> str:
+    """Read drawing properties (title, author, subject, keywords, custom fields)."""
+    return await _call("get_drawing_properties")
+
+
+@mcp.tool()
+async def set_drawing_properties(
+    title: str = "",
+    subject: str = "",
+    author: str = "",
+    keywords: str = "",
+    comments: str = "",
+    revision_number: str = "",
+    hyperlink_base: str = "",
+    custom: dict | None = None,
+) -> str:
+    """Set drawing properties, including custom name/value fields used by title blocks."""
+    params: dict = {}
+    for k, v in (
+        ("title", title), ("subject", subject), ("author", author),
+        ("keywords", keywords), ("comments", comments),
+        ("revision_number", revision_number), ("hyperlink_base", hyperlink_base),
+    ):
+        if v:
+            params[k] = v
+    if custom:
+        params["custom"] = custom
+    return await _call("set_drawing_properties", params)
+
+
+@mcp.tool()
+async def entity_count_report(by_layer: bool = True, space: str = "model") -> str:
+    """Count entities by type and by layer. space: model, paper or current."""
+    return await _call("entity_count_report", {"by_layer": by_layer, "space": space})
+
+
+@mcp.tool()
+async def audit_drawing() -> str:
+    """Health-check the drawing: empty layers, unused blocks, broken xrefs,
+    zero-length curves, frozen/locked layers."""
+    return await _call("audit_drawing")
+
+
+# =============================================================================
+# Multileaders
+# =============================================================================
+
+@mcp.tool()
+async def create_multileader(
+    arrow_point: list[float],
+    text_point: list[float],
+    text: str,
+    height: float = 0.0,
+    style: str = "",
+    text_style: str = "",
+    layer: str = "",
+) -> str:
+    """Create a multileader: an arrow at arrow_point with text at text_point."""
+    params: dict = {"arrow_point": arrow_point, "text_point": text_point, "text": text}
+    if height > 0:
+        params["height"] = height
+    if style:
+        params["style"] = style
+    if text_style:
+        params["text_style"] = text_style
+    if layer:
+        params["layer"] = layer
+    return await _call("create_multileader", params)
+
+
+@mcp.tool()
+async def list_mleader_styles() -> str:
+    """List multileader styles with text height, arrow size and landing gap."""
+    return await _call("list_mleader_styles")
+
+
+@mcp.tool()
+async def create_mleader_style(
+    name: str,
+    text_height: float = 0.0,
+    arrow_size: float = 0.0,
+    landing_gap: float = -1.0,
+    text_style: str = "",
+) -> str:
+    """Create a multileader style."""
+    params: dict = {"name": name}
+    if text_height > 0:
+        params["text_height"] = text_height
+    if arrow_size > 0:
+        params["arrow_size"] = arrow_size
+    if landing_gap >= 0:
+        params["landing_gap"] = landing_gap
+    if text_style:
+        params["text_style"] = text_style
+    return await _call("create_mleader_style", params)
+
+
+# =============================================================================
+# Additional Dimension Types
+# =============================================================================
+
+@mcp.tool()
+async def create_ordinate_dimension(
+    point: list[float],
+    leader_end: list[float],
+    axis: str = "x",
+    text: str = "",
+    style: str = "",
+    layer: str = "",
+) -> str:
+    """Create an ordinate dimension measuring along the x or y axis from the UCS origin."""
+    params: dict = {"point": point, "leader_end": leader_end, "axis": axis}
+    if text:
+        params["text"] = text
+    if style:
+        params["style"] = style
+    if layer:
+        params["layer"] = layer
+    return await _call("create_ordinate_dimension", params)
+
+
+@mcp.tool()
+async def create_arclength_dimension(
+    center: list[float],
+    start: list[float],
+    end: list[float],
+    arc_point: list[float],
+    text: str = "",
+    style: str = "",
+    layer: str = "",
+) -> str:
+    """Create an arc-length dimension for an arc defined by center, start and end."""
+    params: dict = {"center": center, "start": start, "end": end, "arc_point": arc_point}
+    if text:
+        params["text"] = text
+    if style:
+        params["style"] = style
+    if layer:
+        params["layer"] = layer
+    return await _call("create_arclength_dimension", params)
+
+
+@mcp.tool()
+async def create_tolerance(
+    text: str,
+    position: list[float],
+    height: float = 0.0,
+    layer: str = "",
+) -> str:
+    """Create a GD&T feature control frame (tolerance symbol).
+
+    text uses AutoCAD's tolerance encoding, with %%v separating compartments,
+    e.g. "{\\Fgdt;j}%%v{\\Fgdt;n}0.05%%v%%v%%v%%v%%v".
+    """
+    params: dict = {"text": text, "position": position}
+    if height > 0:
+        params["height"] = height
+    if layer:
+        params["layer"] = layer
+    return await _call("create_tolerance", params)
+
+
+@mcp.tool()
+async def edit_dimension_text(id: str, text: str) -> str:
+    """Override a dimension's displayed text.
+
+    Pass "" to clear the override and restore the measured value, or include
+    <> to embed the measurement (e.g. "<> TYP").
+    """
+    return await _call("edit_dimension_text", {"id": id, "text": text})
+
+
+@mcp.tool()
+async def update_dimensions(ids: list[str] | None = None, style: str = "") -> str:
+    """Regenerate dimensions from current settings, optionally reassigning a style.
+
+    Omit ids to update every dimension in the current space.
+    """
+    params: dict = {}
+    if ids:
+        params["ids"] = ids
+    if style:
+        params["style"] = style
+    return await _call("update_dimensions", params)
+
+
+# =============================================================================
+# Annotation Scaling
+# =============================================================================
+
+@mcp.tool()
+async def list_annotation_scales() -> str:
+    """List annotation scales available in the drawing and the current one."""
+    return await _call("list_annotation_scales")
+
+
+@mcp.tool()
+async def set_annotation_scale(name: str) -> str:
+    """Set the current annotation scale (CANNOSCALE), e.g. "1:100"."""
+    return await _call("set_annotation_scale", {"name": name})
+
+
+@mcp.tool()
+async def add_annotation_scale_to_entity(
+    ids: list[str], scale: str, remove: bool = False
+) -> str:
+    """Add (or remove) an annotation scale representation on annotative entities.
+
+    Makes entities annotative if they are not already. Entities that cannot be
+    made annotative are reported in 'skipped' rather than failing the call.
+    """
+    return await _call("add_annotation_scale_to_entity",
+                       {"ids": ids, "scale": scale, "remove": remove})
+
+
+# =============================================================================
+# Tables
+# =============================================================================
+
+@mcp.tool()
+async def get_table_data(id: str) -> str:
+    """Read a table's full contents as a 2D array of cell strings."""
+    return await _call("get_table_data", {"id": id})
+
+
+@mcp.tool()
+async def set_table_cell(
+    id: str,
+    row: int | None = None,
+    column: int | None = None,
+    text: str = "",
+    cells: list[dict] | None = None,
+    text_height: float = 0.0,
+) -> str:
+    """Write table cells.
+
+    Either row+column+text for a single cell, or cells as a list of
+    {"row": r, "column": c, "text": "..."} to update many at once.
+    """
+    params: dict = {"id": id}
+    if cells is not None:
+        params["cells"] = cells
+    else:
+        params["row"] = row
+        params["column"] = column
+        params["text"] = text
+        if text_height > 0:
+            params["text_height"] = text_height
+    return await _call("set_table_cell", params)
+
+
+@mcp.tool()
+async def merge_table_cells(
+    id: str,
+    top_row: int,
+    bottom_row: int,
+    left_column: int,
+    right_column: int,
+    unmerge: bool = False,
+) -> str:
+    """Merge (or unmerge) a rectangular range of table cells."""
+    return await _call("merge_table_cells", {
+        "id": id, "top_row": top_row, "bottom_row": bottom_row,
+        "left_column": left_column, "right_column": right_column, "unmerge": unmerge,
+    })
+
+
+@mcp.tool()
+async def list_table_styles() -> str:
+    """List table styles defined in the drawing."""
+    return await _call("list_table_styles")
+
+
+# =============================================================================
+# Text Editing, Wipeout, Revision Cloud
+# =============================================================================
+
+@mcp.tool()
+async def edit_mtext(
+    id: str,
+    text: str = "",
+    height: float = 0.0,
+    width: float = 0.0,
+    rotation: float | None = None,
+    text_style: str = "",
+) -> str:
+    """Edit existing text or mtext in place — contents, height, width, rotation, style."""
+    params: dict = {"id": id}
+    if text:
+        params["text"] = text
+    if height > 0:
+        params["height"] = height
+    if width > 0:
+        params["width"] = width
+    if rotation is not None:
+        params["rotation"] = rotation
+    if text_style:
+        params["text_style"] = text_style
+    return await _call("edit_mtext", params)
+
+
+@mcp.tool()
+async def create_wipeout(points: list[list[float]], layer: str = "") -> str:
+    """Create a wipeout mask from a closed polygon of at least 3 points.
+
+    Frame visibility is global — control it with set_system_variable("WIPEOUTFRAME", ...).
+    """
+    params: dict = {"points": points}
+    if layer:
+        params["layer"] = layer
+    return await _call("create_wipeout", params)
+
+
+@mcp.tool()
+async def create_revision_cloud(
+    min: list[float],
+    max: list[float],
+    arc_length: float = 0.0,
+    layer: str = "",
+    color: int = -1,
+) -> str:
+    """Create a rectangular revision cloud between two opposite corners.
+
+    arc_length controls bump size; omit it for a sensible default based on the
+    rectangle size.
+    """
+    params: dict = {"min": min, "max": max}
+    if arc_length > 0:
+        params["arc_length"] = arc_length
+    if layer:
+        params["layer"] = layer
+    if color >= 0:
+        params["color"] = color
+    return await _call("create_revision_cloud", params)
+
+
+# =============================================================================
+# Sheet Sets (COM-based, read-only)
+# =============================================================================
+
+@mcp.tool()
+async def get_sheet_set_status() -> str:
+    """Check whether Sheet Set Manager automation is available on this machine.
+
+    Sheet sets have no managed .NET API, so these tools go through the
+    AcSmComponents COM library. Call this before relying on the others.
+    """
+    return await _call("get_sheet_set_status")
+
+
+@mcp.tool()
+async def open_sheet_set(path: str) -> str:
+    """Open a .dst sheet set file and report its name, description and sheet count."""
+    return await _call("open_sheet_set", {"path": path})
+
+
+@mcp.tool()
+async def list_sheets(path: str) -> str:
+    """List the sheets in a .dst sheet set with number, title, name and description."""
+    return await _call("list_sheets", {"path": path})
+
+
+@mcp.tool()
+async def close_sheet_set(path: str) -> str:
+    """Close an open sheet set database."""
+    return await _call("close_sheet_set", {"path": path})
+
+
+# =============================================================================
 # Entry point
 # =============================================================================
 

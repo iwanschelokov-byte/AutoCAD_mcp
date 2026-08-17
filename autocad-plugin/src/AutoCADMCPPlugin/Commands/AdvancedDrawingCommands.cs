@@ -11,11 +11,11 @@ using static AutoCADMCPPlugin.Commands.EntityHelper;
 
 namespace AutoCADMCPPlugin.Commands
 {
-    public class PurgeDrawingCommand : ICommand
+    public class PurgeDrawingCommand : AcadCommand
     {
-        public string MethodName => "purge_drawing";
+        public override string MethodName => "purge_drawing";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -74,11 +74,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class SetUnitsCommand : ICommand
+    public class SetUnitsCommand : AcadCommand
     {
-        public string MethodName => "set_units";
+        public override string MethodName => "set_units";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -98,11 +98,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class DeleteLayerCommand : ICommand
+    public class DeleteLayerCommand : AcadCommand
     {
-        public string MethodName => "delete_layer";
+        public override string MethodName => "delete_layer";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -156,11 +156,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class RenameLayerCommand : ICommand
+    public class RenameLayerCommand : AcadCommand
     {
-        public string MethodName => "rename_layer";
+        public override string MethodName => "rename_layer";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -191,11 +191,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class CreateBlockCommand : ICommand
+    public class CreateBlockCommand : AcadCommand
     {
-        public string MethodName => "create_block";
+        public override string MethodName => "create_block";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -259,11 +259,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class BulkCreateCommand : ICommand
+    public class BulkCreateCommand : AcadCommand
     {
-        public string MethodName => "bulk_create";
+        public override string MethodName => "bulk_create";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");

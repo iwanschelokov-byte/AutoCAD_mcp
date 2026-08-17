@@ -26,11 +26,11 @@ namespace AutoCADMCPPlugin.Commands
     // strings before they emit geometry.
     // =========================================================================
 
-    public class MeasureTextCommand : ICommand
+    public class MeasureTextCommand : AcadCommand
     {
-        public string MethodName => "measure_text";
+        public override string MethodName => "measure_text";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -109,11 +109,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class MeasureTextsCommand : ICommand
+    public class MeasureTextsCommand : AcadCommand
     {
-        public string MethodName => "measure_texts";
+        public override string MethodName => "measure_texts";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");

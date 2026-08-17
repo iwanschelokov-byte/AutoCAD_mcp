@@ -260,11 +260,11 @@ namespace AutoCADMCPPlugin.Commands
     /// area (sheet minus device margins) is what actually decides whether a
     /// drawing frame gets clipped. Both are reported here.
     /// </summary>
-    public class PlotDevicesCommand : ICommand
+    public class PlotDevicesCommand : AcadCommand
     {
-        public string MethodName => "plot_devices";
+        public override string MethodName => "plot_devices";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             // This has to be the very first statement, before a single line of
             // the plot API is touched.
@@ -433,11 +433,11 @@ namespace AutoCADMCPPlugin.Commands
     /// crop with pikepdf and reports whether it worked; a caller talking to this
     /// socket directly gets the number and can crop it itself.
     /// </summary>
-    public class PlotToPdfCommand : ICommand
+    public class PlotToPdfCommand : AcadCommand
     {
-        public string MethodName => "plot_to_pdf";
+        public override string MethodName => "plot_to_pdf";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");

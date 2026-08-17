@@ -94,17 +94,79 @@ namespace AutoCADMCPPlugin.Commands
                 ["object_id"] = id.ToString()
             };
         }
+
+        /// <summary>
+        /// Resolve an entity handle string to an ObjectId.
+        /// Accepts the decimal form this plugin emits and the hexadecimal form
+        /// AutoCAD shows in its own UI (e.g. "1A4"). Returns ObjectId.Null when
+        /// the handle is malformed or refers to nothing in this drawing.
+        /// </summary>
+        public static ObjectId ResolveHandle(Database db, string handle)
+        {
+            if (db == null || string.IsNullOrWhiteSpace(handle)) return ObjectId.Null;
+
+            handle = handle.Trim();
+            ObjectId id;
+
+            // Decimal first — that is what EntityToJson emits, so round-trips win.
+            long dec;
+            if (long.TryParse(handle, out dec))
+            {
+                if (db.TryGetObjectId(new Handle(dec), out id)) return id;
+            }
+
+            // Fall back to hex, which is how AutoCAD's own UI displays handles.
+            try
+            {
+                long hex = Convert.ToInt64(handle, 16);
+                if (db.TryGetObjectId(new Handle(hex), out id)) return id;
+            }
+            catch (FormatException) { }
+            catch (OverflowException) { }
+            catch (ArgumentException) { }
+
+            return ObjectId.Null;
+        }
+
+        /// <summary>
+        /// Read the first present parameter from a list of accepted names.
+        /// Lets tools accept forgiving aliases (id | entity_id | handle) rather
+        /// than failing on a near-miss the model reasonably guessed.
+        /// </summary>
+        public static JToken Arg(JObject parameters, params string[] names)
+        {
+            if (parameters == null || names == null) return null;
+            foreach (var n in names)
+            {
+                var tok = parameters[n];
+                if (tok != null && tok.Type != JTokenType.Null) return tok;
+            }
+            return null;
+        }
+
+        /// <summary>String form of Arg(), or null when absent.</summary>
+        public static string ArgString(JObject parameters, params string[] names)
+        {
+            var tok = Arg(parameters, names);
+            return tok?.ToString();
+        }
+
+        /// <summary>Resolve an entity handle given under any of the usual parameter names.</summary>
+        public static string EntityIdArg(JObject parameters)
+        {
+            return ArgString(parameters, "id", "entity_id", "handle", "object_id");
+        }
     }
 
     // ========================================================================
     // CREATE commands
     // ========================================================================
 
-    public class CreateLineCommand : ICommand
+    public class CreateLineCommand : AcadCommand
     {
-        public string MethodName => "create_line";
+        public override string MethodName => "create_line";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -124,11 +186,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class CreateCircleCommand : ICommand
+    public class CreateCircleCommand : AcadCommand
     {
-        public string MethodName => "create_circle";
+        public override string MethodName => "create_circle";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -151,11 +213,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class CreateArcCommand : ICommand
+    public class CreateArcCommand : AcadCommand
     {
-        public string MethodName => "create_arc";
+        public override string MethodName => "create_arc";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -186,11 +248,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class CreatePolylineCommand : ICommand
+    public class CreatePolylineCommand : AcadCommand
     {
-        public string MethodName => "create_polyline";
+        public override string MethodName => "create_polyline";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -221,11 +283,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class CreateRectangleCommand : ICommand
+    public class CreateRectangleCommand : AcadCommand
     {
-        public string MethodName => "create_rectangle";
+        public override string MethodName => "create_rectangle";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -251,11 +313,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class CreateEllipseCommand : ICommand
+    public class CreateEllipseCommand : AcadCommand
     {
-        public string MethodName => "create_ellipse";
+        public override string MethodName => "create_ellipse";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -280,11 +342,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class CreateTextCommand : ICommand
+    public class CreateTextCommand : AcadCommand
     {
-        public string MethodName => "create_text";
+        public override string MethodName => "create_text";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -313,11 +375,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class CreateMTextCommand : ICommand
+    public class CreateMTextCommand : AcadCommand
     {
-        public string MethodName => "create_mtext";
+        public override string MethodName => "create_mtext";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -346,11 +408,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class CreateHatchCommand : ICommand
+    public class CreateHatchCommand : AcadCommand
     {
-        public string MethodName => "create_hatch";
+        public override string MethodName => "create_hatch";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");

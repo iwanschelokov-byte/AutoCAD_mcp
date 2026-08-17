@@ -1,0 +1,4790 @@
+[
+  {
+    "name": "add_annotation_scale_to_entity",
+    "description": "Add (or remove) an annotation scale representation on annotative entities.\n\nMakes entities annotative if they are not already. Entities that cannot be\nmade annotative are reported in 'skipped' rather than failing the call.",
+    "summary": "Add (or remove) an annotation scale representation on annotative entities.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "scale": {
+          "type": "string"
+        },
+        "remove": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "ids",
+        "scale"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "add_to_group",
+    "description": "Add entities to a group, or remove them with remove=true.",
+    "summary": "Add entities to a group, or remove them with remove=true.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "remove": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "name",
+        "ids"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "array_polar",
+    "description": "Create polar (circular) array of entity around center point.",
+    "summary": "Create polar (circular) array of entity around center point.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "handle": {
+          "type": "string"
+        },
+        "center": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "count": {
+          "type": "integer"
+        },
+        "total_angle": {
+          "type": "number",
+          "default": 360
+        },
+        "rotate_items": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "required": [
+        "handle",
+        "center",
+        "count"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "array_rectangular",
+    "description": "Create rectangular array of entity. Returns handles of new copies (original stays).",
+    "summary": "Create rectangular array of entity. Returns handles of new copies (original stays).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "handle": {
+          "type": "string"
+        },
+        "rows": {
+          "type": "integer"
+        },
+        "columns": {
+          "type": "integer"
+        },
+        "row_spacing": {
+          "type": "number"
+        },
+        "column_spacing": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "handle",
+        "rows",
+        "columns",
+        "row_spacing",
+        "column_spacing"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "attach_xref",
+    "description": "Attach an external DWG as an xref and place a reference to it.\n\noverlay=True attaches as an overlay (not nested into drawings that xref this one).",
+    "summary": "Attach an external DWG as an xref and place a reference to it.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "position": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "scale": {
+          "type": "number",
+          "default": 1.0
+        },
+        "rotation": {
+          "type": "number",
+          "default": 0.0
+        },
+        "overlay": {
+          "type": "boolean",
+          "default": false
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "audit_drawing",
+    "description": "Health-check the drawing: empty layers, unused blocks, broken xrefs,\nzero-length curves, frozen/locked layers.",
+    "summary": "Health-check the drawing: empty layers, unused blocks, broken xrefs,",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "batch_query_dwgs",
+    "description": "Scan a folder of DWG files without opening any of them.\n\nIdeal for audits: \"which drawings use layer X\", \"how many sheets per file\".\nReports which files failed to read rather than aborting the sweep.",
+    "summary": "Scan a folder of DWG files without opening any of them.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "folder": {
+          "type": "string"
+        },
+        "recursive": {
+          "type": "boolean",
+          "default": false
+        },
+        "limit": {
+          "type": "integer",
+          "default": 200
+        },
+        "include_layers": {
+          "type": "boolean",
+          "default": false
+        },
+        "include_blocks": {
+          "type": "boolean",
+          "default": false
+        },
+        "include_layouts": {
+          "type": "boolean",
+          "default": true
+        },
+        "include_entity_counts": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "folder"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "bind_xref",
+    "description": "Bind an xref into the drawing, making its geometry permanent.\n\ninsert_bind=True merges names like INSERT; False keeps them prefixed.",
+    "summary": "Bind an xref into the drawing, making its geometry permanent.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "insert_bind": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "boolean_solids",
+    "description": "Combine 3D solids. operation: union, subtract or intersect.\n\nThe result is written into target; the other solids are consumed.",
+    "summary": "Combine 3D solids. operation: union, subtract or intersect.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "type": "string"
+        },
+        "others": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "operation": {
+          "type": "string",
+          "default": "union"
+        }
+      },
+      "required": [
+        "target",
+        "others"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "break_entity",
+    "description": "Split a curve at one or more points, replacing it with the resulting pieces.\n\nPoints are snapped onto the curve, so approximate coordinates are fine.",
+    "summary": "Split a curve at one or more points, replacing it with the resulting pieces.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "points": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "required": [
+        "id",
+        "points"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "bulk_create",
+    "description": "Create multiple entities in one call for performance. Each item: {type: 'line'|'circle'|'arc'|'polyline'|'rectangle'|'text'|'mtext'|'ellipse', params: {...}}.",
+    "summary": "Create multiple entities in one call for performance. Each item: {type: 'line'|'circle'|'arc'|'polyline'|'rectangle'|'text'|'mtext'|'ellipse', params: {...}}.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "entities": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      },
+      "required": [
+        "entities"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "bulk_erase",
+    "description": "Erase multiple entities at once. By handles list, or by layer/type filter.",
+    "summary": "Erase multiple entities at once. By handles list, or by layer/type filter.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "handles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "layer": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "capture_screenshot",
+    "description": "Capture a screenshot of the current AutoCAD window and save as PNG.\nReturns the file path of the saved image. Use this to visually verify\nthat drawing operations were completed correctly. The AI can view the\nreturned image file to check the result.",
+    "summary": "Capture a screenshot of the current AutoCAD window and save as PNG.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "output_path": {
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "close_all",
+    "description": "Close every open drawing. `keep` optionally names one to leave open.\n\nsave defaults to False — unsaved changes in every closed drawing are\nDISCARDED.",
+    "summary": "Close every open drawing. `keep` optionally names one to leave open.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "save": {
+          "type": "boolean",
+          "default": false
+        },
+        "keep": {
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "close_sheet_set",
+    "description": "Close an open sheet set database.",
+    "summary": "Close an open sheet set database.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "copy_entity",
+    "description": "Copy an entity from one point to another. Returns the new entity's handle.",
+    "summary": "Copy an entity from one point to another. Returns the new entity's handle.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "handle": {
+          "type": "string"
+        },
+        "from_point": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "to_point": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        }
+      },
+      "required": [
+        "handle",
+        "from_point",
+        "to_point"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "copy_layout",
+    "description": "Duplicate a layout, including its page setup and viewports.",
+    "summary": "Duplicate a layout, including its page setup and viewports.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "new_name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "new_name"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "count_block_references",
+    "description": "Count how many times each block is inserted — a quick bill of materials.\nPass name to count one block only.",
+    "summary": "Count how many times each block is inserted — a quick bill of materials.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_3d_polyline",
+    "description": "Create a 3D polyline through [x,y,z] points.",
+    "summary": "Create a 3D polyline through [x,y,z] points.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "points": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "closed": {
+          "type": "boolean",
+          "default": false
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "points"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_aligned_dimension",
+    "description": "Create an aligned dimension between two points (measures along the line between them).",
+    "summary": "Create an aligned dimension between two points (measures along the line between them).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "point1": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "point2": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "dimension_line_position": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "text": {
+          "type": "string"
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "point1",
+        "point2",
+        "dimension_line_position"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_angular_dimension",
+    "description": "Create an angular dimension measuring the angle at center between two lines.",
+    "summary": "Create an angular dimension measuring the angle at center between two lines.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "center": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "point1": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "point2": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "dimension_arc_position": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "text": {
+          "type": "string"
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "center",
+        "point1",
+        "point2",
+        "dimension_arc_position"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_arc",
+    "description": "Draw an arc. Angles in degrees by default. Set degrees=false for radians.",
+    "summary": "Draw an arc. Angles in degrees by default. Set degrees=false for radians.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "center": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "radius": {
+          "type": "number"
+        },
+        "start_angle": {
+          "type": "number"
+        },
+        "end_angle": {
+          "type": "number"
+        },
+        "degrees": {
+          "type": "boolean",
+          "default": true
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "center",
+        "radius",
+        "start_angle",
+        "end_angle"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_arclength_dimension",
+    "description": "Create an arc-length dimension for an arc defined by center, start and end.",
+    "summary": "Create an arc-length dimension for an arc defined by center, start and end.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "center": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "start": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "end": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "arc_point": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "text": {
+          "type": "string"
+        },
+        "style": {
+          "type": "string"
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "center",
+        "start",
+        "end",
+        "arc_point"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_block",
+    "description": "Create a new block definition from existing entities. Provide entity handles and a block name.",
+    "summary": "Create a new block definition from existing entities. Provide entity handles and a block name.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "handles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "base_point": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "erase_originals": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "name",
+        "handles"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_boundary",
+    "description": "Trace a closed boundary polyline around a point (AutoCAD BPOLY).\n\nThe point must sit inside a fully enclosed area.",
+    "summary": "Trace a closed boundary polyline around a point (AutoCAD BPOLY).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "point": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "detect_islands": {
+          "type": "boolean",
+          "default": true
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "point"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_box",
+    "description": "Create a 3D box solid centred on a point.",
+    "summary": "Create a 3D box solid centred on a point.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "center": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "length": {
+          "type": "number"
+        },
+        "width": {
+          "type": "number"
+        },
+        "height": {
+          "type": "number"
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "center",
+        "length",
+        "width",
+        "height"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_circle",
+    "description": "Draw a circle at center [x,y] with given radius.",
+    "summary": "Draw a circle at center [x,y] with given radius.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "center": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "radius": {
+          "type": "number"
+        },
+        "layer": {
+          "type": "string"
+        },
+        "color": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "center",
+        "radius"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_cone",
+    "description": "Create a 3D cone; top_radius > 0 makes a truncated cone (frustum).",
+    "summary": "Create a 3D cone; top_radius > 0 makes a truncated cone (frustum).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "center": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "radius": {
+          "type": "number"
+        },
+        "height": {
+          "type": "number"
+        },
+        "top_radius": {
+          "type": "number",
+          "default": 0.0
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "center",
+        "radius",
+        "height"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_cylinder",
+    "description": "Create a 3D cylinder solid centred on a point.",
+    "summary": "Create a 3D cylinder solid centred on a point.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "center": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "radius": {
+          "type": "number"
+        },
+        "height": {
+          "type": "number"
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "center",
+        "radius",
+        "height"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_diameter_dimension",
+    "description": "Create a diameter dimension for a circle.",
+    "summary": "Create a diameter dimension for a circle.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "center": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "chord_point": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "leader_length": {
+          "type": "number",
+          "default": 0
+        },
+        "text": {
+          "type": "string"
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "center",
+        "chord_point"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_dimension_style",
+    "description": "Create or update a dimension style. Fixes invisible dim text by setting proper text_height and arrow_size.",
+    "summary": "Create or update a dimension style. Fixes invisible dim text by setting proper text_height and arrow_size.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "text_height": {
+          "type": "number",
+          "default": 0
+        },
+        "arrow_size": {
+          "type": "number",
+          "default": 0
+        },
+        "linear_scale_factor": {
+          "type": "number",
+          "default": 0
+        },
+        "decimal_places": {
+          "type": "integer"
+        },
+        "text_above": {
+          "type": "boolean"
+        },
+        "text_color": {
+          "type": "integer"
+        },
+        "dim_line_color": {
+          "type": "integer"
+        },
+        "ext_line_color": {
+          "type": "integer"
+        },
+        "suffix": {
+          "type": "string"
+        },
+        "text_style": {
+          "type": "string"
+        },
+        "extension_offset": {
+          "type": "number",
+          "default": 0
+        },
+        "extension_extend": {
+          "type": "number",
+          "default": 0
+        },
+        "text_gap": {
+          "type": "number",
+          "default": 0
+        },
+        "set_current": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_donut",
+    "description": "Create a donut (filled annulus). inner_diameter=0 gives a filled dot.",
+    "summary": "Create a donut (filled annulus). inner_diameter=0 gives a filled dot.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "center": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "outer_diameter": {
+          "type": "number"
+        },
+        "inner_diameter": {
+          "type": "number"
+        },
+        "layer": {
+          "type": "string"
+        },
+        "color": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "center",
+        "outer_diameter",
+        "inner_diameter"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_ellipse",
+    "description": "Draw an ellipse at center with major and minor radii.",
+    "summary": "Draw an ellipse at center with major and minor radii.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "center": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "major_radius": {
+          "type": "number"
+        },
+        "minor_radius": {
+          "type": "number"
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "center",
+        "major_radius",
+        "minor_radius"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_group",
+    "description": "Create a named group from entities so they select together.",
+    "summary": "Create a named group from entities so they select together.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "ids"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_hatch",
+    "description": "Create a hatch inside a boundary defined by points. Pattern examples: ANSI31, SOLID, DOTS.",
+    "summary": "Create a hatch inside a boundary defined by points. Pattern examples: ANSI31, SOLID, DOTS.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "boundary": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "pattern": {
+          "type": "string",
+          "default": "ANSI31"
+        },
+        "scale": {
+          "type": "number",
+          "default": 1.0
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "boundary"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_layer",
+    "description": "Create a new layer with optional color (ACI 0-255) and linetype.",
+    "summary": "Create a new layer with optional color (ACI 0-255) and linetype.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "color": {
+          "type": "integer",
+          "default": 7
+        },
+        "set_current": {
+          "type": "boolean",
+          "default": false
+        },
+        "linetype": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_layout",
+    "description": "Create a new layout (sheet) tab.",
+    "summary": "Create a new layout (sheet) tab.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "set_current": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_leader",
+    "description": "Create a leader (callout arrow) with text. Points: [[arrow_tip], ..., [landing_point]].",
+    "summary": "Create a leader (callout arrow) with text. Points: [[arrow_tip], ..., [landing_point]].",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "points": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "text": {
+          "type": "string"
+        },
+        "text_height": {
+          "type": "number",
+          "default": 2.5
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "points"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_line",
+    "description": "Draw a line from start [x,y] to end [x,y]. Optionally set layer and color (0-255 ACI).",
+    "summary": "Draw a line from start [x,y] to end [x,y]. Optionally set layer and color (0-255 ACI).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "start": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "end": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "layer": {
+          "type": "string"
+        },
+        "color": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_linear_dimension",
+    "description": "Create a linear (horizontal/vertical) dimension between two points.",
+    "summary": "Create a linear (horizontal/vertical) dimension between two points.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "point1": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "point2": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "dimension_line_position": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "rotation": {
+          "type": "number",
+          "default": 0
+        },
+        "text": {
+          "type": "string"
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "point1",
+        "point2",
+        "dimension_line_position"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_mleader_style",
+    "description": "Create a multileader style.",
+    "summary": "Create a multileader style.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "text_height": {
+          "type": "number",
+          "default": 0.0
+        },
+        "arrow_size": {
+          "type": "number",
+          "default": 0.0
+        },
+        "landing_gap": {
+          "type": "number"
+        },
+        "text_style": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_mtext",
+    "description": "Place multi-line text at position [x,y]. Width=0 means auto-width.",
+    "summary": "Place multi-line text at position [x,y]. Width=0 means auto-width.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "position": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "height": {
+          "type": "number",
+          "default": 2.5
+        },
+        "width": {
+          "type": "number",
+          "default": 0
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "position"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_multileader",
+    "description": "Create a multileader: an arrow at arrow_point with text at text_point.",
+    "summary": "Create a multileader: an arrow at arrow_point with text at text_point.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "arrow_point": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "text_point": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "text": {
+          "type": "string"
+        },
+        "height": {
+          "type": "number",
+          "default": 0.0
+        },
+        "style": {
+          "type": "string"
+        },
+        "text_style": {
+          "type": "string"
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "arrow_point",
+        "text_point",
+        "text"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_named_view",
+    "description": "Save a named view from a rectangular window (min and max corners).",
+    "summary": "Save a named view from a rectangular window (min and max corners).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "min": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "max": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        }
+      },
+      "required": [
+        "name",
+        "min",
+        "max"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_ordinate_dimension",
+    "description": "Create an ordinate dimension measuring along the x or y axis from the UCS origin.",
+    "summary": "Create an ordinate dimension measuring along the x or y axis from the UCS origin.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "point": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "leader_end": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "axis": {
+          "type": "string",
+          "default": "x"
+        },
+        "text": {
+          "type": "string"
+        },
+        "style": {
+          "type": "string"
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "point",
+        "leader_end"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_point",
+    "description": "Create a point entity.",
+    "summary": "Create a point entity.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "position": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "layer": {
+          "type": "string"
+        },
+        "color": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "position"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_polygon",
+    "description": "Create a regular polygon. mode: inscribed (radius to vertex) or circumscribed.",
+    "summary": "Create a regular polygon. mode: inscribed (radius to vertex) or circumscribed.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "center": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "sides": {
+          "type": "integer"
+        },
+        "radius": {
+          "type": "number"
+        },
+        "mode": {
+          "type": "string",
+          "default": "inscribed"
+        },
+        "rotation": {
+          "type": "number",
+          "default": 0.0
+        },
+        "layer": {
+          "type": "string"
+        },
+        "color": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "center",
+        "sides",
+        "radius"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_polyline",
+    "description": "Draw a polyline through a list of points [[x1,y1], [x2,y2], ...]. Set closed=true to close it.",
+    "summary": "Draw a polyline through a list of points [[x1,y1], [x2,y2], ...]. Set closed=true to close it.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "points": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "closed": {
+          "type": "boolean",
+          "default": false
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "points"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_radial_dimension",
+    "description": "Create a radial dimension for a circle or arc.",
+    "summary": "Create a radial dimension for a circle or arc.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "center": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "chord_point": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "leader_length": {
+          "type": "number",
+          "default": 0
+        },
+        "text": {
+          "type": "string"
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "center",
+        "chord_point"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_ray",
+    "description": "Create a ray (semi-infinite line) from a point.",
+    "summary": "Create a ray (semi-infinite line) from a point.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "point": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "through": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "angle": {
+          "type": "number",
+          "default": 0.0
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "point"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_rectangle",
+    "description": "Draw a rectangle from corner1 [x,y] to corner2 [x,y].",
+    "summary": "Draw a rectangle from corner1 [x,y] to corner2 [x,y].",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "corner1": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "corner2": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "corner1",
+        "corner2"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_region",
+    "description": "Build region(s) from closed loops of curves — the input for extrude/revolve.",
+    "summary": "Build region(s) from closed loops of curves — the input for extrude/revolve.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "erase_source": {
+          "type": "boolean",
+          "default": false
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ids"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_revision_cloud",
+    "description": "Create a rectangular revision cloud between two opposite corners.\n\narc_length controls bump size; omit it for a sensible default based on the\nrectangle size.",
+    "summary": "Create a rectangular revision cloud between two opposite corners.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "min": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "max": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "arc_length": {
+          "type": "number",
+          "default": 0.0
+        },
+        "layer": {
+          "type": "string"
+        },
+        "color": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "min",
+        "max"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_sphere",
+    "description": "Create a 3D sphere solid.",
+    "summary": "Create a 3D sphere solid.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "center": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "radius": {
+          "type": "number"
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "center",
+        "radius"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_spline",
+    "description": "Draw a smooth spline curve through points [[x1,y1], ...]. Set closed=true for closed spline.",
+    "summary": "Draw a smooth spline curve through points [[x1,y1], ...]. Set closed=true for closed spline.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "points": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "closed": {
+          "type": "boolean",
+          "default": false
+        },
+        "layer": {
+          "type": "string"
+        },
+        "color": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "points"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_table",
+    "description": "Create a table at position [x,y] with rows/columns. Data is 2D array of cell strings.",
+    "summary": "Create a table at position [x,y] with rows/columns. Data is 2D array of cell strings.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "position": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "rows": {
+          "type": "integer",
+          "default": 3
+        },
+        "columns": {
+          "type": "integer",
+          "default": 3
+        },
+        "row_height": {
+          "type": "number",
+          "default": 500
+        },
+        "column_width": {
+          "type": "number",
+          "default": 2000
+        },
+        "title": {
+          "type": "string"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "position"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_table_from_excel",
+    "description": "Create a table in AutoCAD from an Excel file. Reads the spreadsheet, auto-sizes columns, and draws grid lines + text.\n\nArgs:\n    excel_path: Absolute path to the .xlsx file.\n    position: Insertion point [x, y] for top-left corner of the table.\n    sheet_name: Sheet name to read (default: first sheet).\n    title: Optional title row text spanning full width.\n    text_height: Text height for data cells.\n    header_text_height: Text height for the first row (header).\n    title_text_height: Text height for the title row.\n    row_height: Row height for data cells.\n    header_row_height: Row height for the first (header) row.\n    title_row_height: Row height for the title row.\n    min_col_width: Minimum column width.\n    char_width: Approximate width per character for auto-sizing.\n    color: ACI color index (default 3 = green).\n    layer: Layer name for all entities.\n    start_row: First Excel row to read (1-based, default 1).\n    end_row: Last Excel row to read (0 = last row).\n    start_col: First Excel column to read (1-based, default 1).\n    end_col: Last Excel column to read (0 = last column).",
+    "summary": "Create a table in AutoCAD from an Excel file. Reads the spreadsheet, auto-sizes columns, and draws grid lines + text.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "excel_path": {
+          "type": "string"
+        },
+        "position": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "sheet_name": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "text_height": {
+          "type": "number",
+          "default": 120
+        },
+        "header_text_height": {
+          "type": "number",
+          "default": 140
+        },
+        "title_text_height": {
+          "type": "number",
+          "default": 250
+        },
+        "row_height": {
+          "type": "number",
+          "default": 350
+        },
+        "header_row_height": {
+          "type": "number",
+          "default": 400
+        },
+        "title_row_height": {
+          "type": "number",
+          "default": 600
+        },
+        "min_col_width": {
+          "type": "number",
+          "default": 2000
+        },
+        "char_width": {
+          "type": "number",
+          "default": 80
+        },
+        "color": {
+          "type": "integer",
+          "default": 3
+        },
+        "layer": {
+          "type": "string",
+          "default": "TABLE"
+        },
+        "start_row": {
+          "type": "integer",
+          "default": 1
+        },
+        "end_row": {
+          "type": "integer",
+          "default": 0
+        },
+        "start_col": {
+          "type": "integer",
+          "default": 1
+        },
+        "end_col": {
+          "type": "integer",
+          "default": 0
+        }
+      },
+      "required": [
+        "excel_path",
+        "position"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_text",
+    "description": "Place single-line text at position [x,y]. Height in drawing units, rotation in degrees.",
+    "summary": "Place single-line text at position [x,y]. Height in drawing units, rotation in degrees.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "position": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "height": {
+          "type": "number",
+          "default": 2.5
+        },
+        "rotation": {
+          "type": "number",
+          "default": 0
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "position"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_text_style",
+    "description": "Create or update a text style. Height=0 means variable (uses DIMTXT for dimensions).",
+    "summary": "Create or update a text style. Height=0 means variable (uses DIMTXT for dimensions).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "font": {
+          "type": "string",
+          "default": "Arial"
+        },
+        "height": {
+          "type": "number",
+          "default": 0
+        },
+        "width_factor": {
+          "type": "number",
+          "default": 1.0
+        },
+        "oblique_angle": {
+          "type": "number",
+          "default": 0
+        },
+        "set_current": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_tolerance",
+    "description": "Create a GD&T feature control frame (tolerance symbol).\n\ntext uses AutoCAD's tolerance encoding, with %%v separating compartments,\ne.g. \"{\\Fgdt;j}%%v{\\Fgdt;n}0.05%%v%%v%%v%%v%%v\".",
+    "summary": "Create a GD&T feature control frame (tolerance symbol).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "position": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "height": {
+          "type": "number",
+          "default": 0.0
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "position"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_torus",
+    "description": "Create a 3D torus solid.",
+    "summary": "Create a 3D torus solid.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "center": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "major_radius": {
+          "type": "number"
+        },
+        "minor_radius": {
+          "type": "number"
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "center",
+        "major_radius",
+        "minor_radius"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_viewport",
+    "description": "Create a paper-space viewport on a layout.\n\ncenter/width/height are in paper space units. scale like \"1:100\" sets the\nmodel-to-paper ratio; view_center pans the model view inside the viewport.",
+    "summary": "Create a paper-space viewport on a layout.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "center": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "width": {
+          "type": "number"
+        },
+        "height": {
+          "type": "number"
+        },
+        "layout": {
+          "type": "string"
+        },
+        "scale": {
+          "type": "string"
+        },
+        "view_center": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "locked": {
+          "type": "boolean",
+          "default": false
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "center",
+        "width",
+        "height"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_wedge",
+    "description": "Create a 3D wedge solid.",
+    "summary": "Create a 3D wedge solid.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "center": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "length": {
+          "type": "number"
+        },
+        "width": {
+          "type": "number"
+        },
+        "height": {
+          "type": "number"
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "center",
+        "length",
+        "width",
+        "height"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_wipeout",
+    "description": "Create a wipeout mask from a closed polygon of at least 3 points.\n\nFrame visibility is global — control it with set_system_variable(\"WIPEOUTFRAME\", ...).",
+    "summary": "Create a wipeout mask from a closed polygon of at least 3 points.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "points": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "points"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "create_xline",
+    "description": "Create an infinite construction line through a point, by angle or a second point.",
+    "summary": "Create an infinite construction line through a point, by angle or a second point.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "point": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "through": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "angle": {
+          "type": "number",
+          "default": 0.0
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "point"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "delete_block_definition",
+    "description": "Delete an unused block definition. Refuses if references still exist.\nDestructive — pass __confirm=true to proceed.",
+    "summary": "Delete an unused block definition. Refuses if references still exist.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "__confirm": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "delete_layer",
+    "description": "Delete a layer. Entities on it are moved to layer '0'. Cannot delete '0' or current layer.",
+    "summary": "Delete a layer. Entities on it are moved to layer '0'. Cannot delete '0' or current layer.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "delete_layer_state",
+    "description": "Delete a saved layer state. Destructive — pass __confirm=true to proceed.",
+    "summary": "Delete a saved layer state. Destructive — pass __confirm=true to proceed.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "__confirm": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "delete_layout",
+    "description": "Delete a layout. Destructive — pass __confirm=true to proceed.",
+    "summary": "Delete a layout. Destructive — pass __confirm=true to proceed.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "__confirm": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "detach_xref",
+    "description": "Detach an xref completely. Destructive — pass __confirm=true to proceed.",
+    "summary": "Detach an xref completely. Destructive — pass __confirm=true to proceed.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "__confirm": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "divide_entity",
+    "description": "Place markers dividing a curve into N equal segments (AutoCAD DIVIDE).\n\nPlaces points by default, or copies of a block if block is given.",
+    "summary": "Place markers dividing a curve into N equal segments (AutoCAD DIVIDE).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "segments": {
+          "type": "integer"
+        },
+        "block": {
+          "type": "string"
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "segments"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "drawing_close",
+    "description": "Close a drawing. Closes the active drawing unless `path` names another one.\n\nsave defaults to False: the drawing is closed and unsaved changes are\nDISCARDED. Pass save=True to write the file first. Closing is what releases\nAutoCAD's lock on the .dwg, so do it before another tool needs the file.\n\nThe result carries a `status` saying which of those actually happened -\n\"saved\", \"closed_unchanged\" (there was nothing to save), \"changes_discarded\"\n(there was, and it is gone) or \"closed\" (the drawing was not the active one,\nso DBMOD could not be read and no claim is made either way).",
+    "summary": "Close a drawing. Closes the active drawing unless `path` names another one.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "save": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "drawing_info",
+    "description": "Get info about the current drawing: name, path, entity count, layers.",
+    "summary": "Get info about the current drawing: name, path, entity count, layers.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "drawing_list",
+    "description": "List every drawing currently open in AutoCAD, marking the active one.",
+    "summary": "List every drawing currently open in AutoCAD, marking the active one.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "drawing_new",
+    "description": "Create a new drawing, optionally from a template file path.",
+    "summary": "Create a new drawing, optionally from a template file path.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "template": {
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "drawing_open",
+    "description": "Open an existing .dwg file and make it the active drawing.\n\nIf the file is already open it is simply activated (AutoCAD cannot open a\nfile it already holds a lock on); the answer then says already_open=true.",
+    "summary": "Open an existing .dwg file and make it the active drawing.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "read_only": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "drawing_save",
+    "description": "Save the current drawing.\n\nWith no path: saves in place (QSAVE).\nWith a path, `mode` decides what \"save as\" means:\n  - \"copy\" (default): writes the file, but the editing session keeps\n    pointing at the original drawing.\n  - \"saveas\": switches the editing session to the new file, like the\n    SAVEAS command in the UI.",
+    "summary": "Save the current drawing.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string",
+          "default": "copy"
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "edit_dimension_text",
+    "description": "Override a dimension's displayed text.\n\nPass \"\" to clear the override and restore the measured value, or include\n<> to embed the measurement (e.g. \"<> TYP\").",
+    "summary": "Override a dimension's displayed text.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "edit_mtext",
+    "description": "Edit existing text or mtext in place — contents, height, width, rotation, style.",
+    "summary": "Edit existing text or mtext in place — contents, height, width, rotation, style.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "height": {
+          "type": "number",
+          "default": 0.0
+        },
+        "width": {
+          "type": "number",
+          "default": 0.0
+        },
+        "rotation": {
+          "type": "number"
+        },
+        "text_style": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "entity_count_report",
+    "description": "Count entities by type and by layer. space: model, paper or current.",
+    "summary": "Count entities by type and by layer. space: model, paper or current.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "by_layer": {
+          "type": "boolean",
+          "default": true
+        },
+        "space": {
+          "type": "string",
+          "default": "model"
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "erase_entity",
+    "description": "Delete an entity by its handle ID.",
+    "summary": "Delete an entity by its handle ID.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "handle": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "handle"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "execute_command",
+    "description": "Execute a raw AutoCAD command, optionally with all of its interactive inputs.\n\nThe command and every item of `inputs` are joined into ONE space-separated\nstring and sent to AutoCAD in a single call. Interactive / multi-step\ncommands MUST be passed this way (command + all prompt responses together);\nsplitting them across several execute_command calls does not work, because\nAutoCAD cancels a command that is still awaiting input when the next string\nis queued.\n\nThe command runs asynchronously, so the send itself cannot report success.\nWith check=True (default) this tool waits `wait` seconds and then reads the\ncommand log back, so the answer contains what AutoCAD actually did — an\nunknown command or a rejected input shows up under \"outcome\" instead of\nfailing silently. Set check=False for fire-and-forget.\n\nExamples:\n    execute_command(\"ZOOM E\")\n    execute_command(\"_.CIRCLE\", [\"100,100\", \"40\"])\n    execute_command(\"_.POLYGON\", [\"6\", \"400,250\", \"_I\", \"60\"])",
+    "summary": "Execute a raw AutoCAD command, optionally with all of its interactive inputs.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "check": {
+          "type": "boolean",
+          "default": true
+        },
+        "wait": {
+          "type": "number",
+          "default": 0.5
+        }
+      },
+      "required": [
+        "command"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "explode_entity",
+    "description": "Explode a block/polyline/dimension into primitive entities. Returns new entity handles.",
+    "summary": "Explode a block/polyline/dimension into primitive entities. Returns new entity handles.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "handle": {
+          "type": "string"
+        },
+        "erase_original": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "required": [
+        "handle"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "export_block_to_file",
+    "description": "Export a block definition to its own DWG file (WBLOCK).",
+    "summary": "Export a block definition to its own DWG file (WBLOCK).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "path"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "extrude_profile",
+    "description": "Extrude closed profile curves into a 3D solid.",
+    "summary": "Extrude closed profile curves into a 3D solid.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "height": {
+          "type": "number"
+        },
+        "taper_angle": {
+          "type": "number",
+          "default": 0.0
+        },
+        "erase_source": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "required": [
+        "ids",
+        "height"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "fillet_entities",
+    "description": "Fillet two lines with a tangent arc, trimming both back to the tangent points.\n\nCurrently supports two Line entities; use execute_command('FILLET') for other types.",
+    "summary": "Fillet two lines with a tangent arc, trimming both back to the tangent points.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id1": {
+          "type": "string"
+        },
+        "id2": {
+          "type": "string"
+        },
+        "radius": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "id1",
+        "id2",
+        "radius"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "find_intersections",
+    "description": "Find intersection points between two curve entities.",
+    "summary": "Find intersection points between two curve entities.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "handle1": {
+          "type": "string"
+        },
+        "handle2": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "handle1",
+        "handle2"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "find_nearest",
+    "description": "Find entities nearest to a point [x,y], sorted by distance. Filter by type/layer. Set radius=0 for unlimited range.",
+    "summary": "Find entities nearest to a point [x,y], sorted by distance. Filter by type/layer. Set radius=0 for unlimited range.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "point": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "radius": {
+          "type": "number",
+          "default": 0
+        },
+        "type": {
+          "type": "string"
+        },
+        "layer": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "default": 20
+        }
+      },
+      "required": [
+        "point"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "flatten_entities",
+    "description": "Flatten entities to a single Z elevation. Omit ids to flatten all of model space.",
+    "summary": "Flatten entities to a single Z elevation. Omit ids to flatten all of model space.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "z": {
+          "type": "number",
+          "default": 0.0
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "get_attribute_values",
+    "description": "Read attribute values.\n\nPass id for one block reference, or name to read every reference of that\nblock (title blocks, door tags, equipment schedules).",
+    "summary": "Read attribute values.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "get_bounding_box",
+    "description": "Get the bounding box of an entity. Returns min_point, max_point, width, height.",
+    "summary": "Get the bounding box of an entity. Returns min_point, max_point, width, height.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "handle": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "handle"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "get_capabilities",
+    "description": "Report what this plugin build supports: tool count, AutoCAD version range,\n.NET target, which tools are destructive, and the current safety settings.\n\nAnswers instantly even when AutoCAD is busy or showing a modal dialog.",
+    "summary": "Report what this plugin build supports: tool count, AutoCAD version range,",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "get_drawing_properties",
+    "description": "Read drawing properties (title, author, subject, keywords, custom fields).",
+    "summary": "Read drawing properties (title, author, subject, keywords, custom fields).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "get_dynamic_block_properties",
+    "description": "List a dynamic block reference's parameters, current values and allowed values.",
+    "summary": "List a dynamic block reference's parameters, current values and allowed values.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "get_entities",
+    "description": "Get info about several entities at once, by handle. One call instead of N.",
+    "summary": "Get info about several entities at once, by handle. One call instead of N.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "handles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "detailed": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "required": [
+        "handles"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "get_entity",
+    "description": "Get detailed info about a specific entity by its handle.\n\nThe handle is hexadecimal, as AutoCAD shows it (\"97B176\"), so it can be\npasted straight into (handent \"97B176\") or a DXF filter.",
+    "summary": "Get detailed info about a specific entity by its handle.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "handle": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "handle"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "get_page_setup",
+    "description": "Read a layout's page setup: device, paper size, plot type, scale, style table.",
+    "summary": "Read a layout's page setup: device, paper size, plot type, scale, style table.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "layout": {
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "get_server_options",
+    "description": "Read the current safety posture (read-only mode, destructive confirmation, audit log).",
+    "summary": "Read the current safety posture (read-only mode, destructive confirmation, audit log).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "get_sheet_set_status",
+    "description": "Check whether Sheet Set Manager automation is available on this machine.\n\nSheet sets have no managed .NET API, so these tools go through the\nAcSmComponents COM library. Call this before relying on the others.",
+    "summary": "Check whether Sheet Set Manager automation is available on this machine.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "get_solid_properties",
+    "description": "Get a 3D solid's volume, centroid, moments of inertia and bounding box.",
+    "summary": "Get a 3D solid's volume, centroid, moments of inertia and bounding box.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "get_system_variable",
+    "description": "Get the current value of an AutoCAD system variable.",
+    "summary": "Get the current value of an AutoCAD system variable.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "get_table_data",
+    "description": "Read a table's full contents as a 2D array of cell strings.",
+    "summary": "Read a table's full contents as a 2D array of cell strings.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "get_xdata",
+    "description": "Read extended entity data (XData) attached to an entity.",
+    "summary": "Read extended entity data (XData) attached to an entity.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "app_name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "import_block",
+    "description": "Import block definitions from an external DWG file into the current drawing.\nUse this to bring in blocks from other drawings without needing Design Center.\nAfter importing, use insert_block to place them. If block_names is omitted, all user blocks are imported.",
+    "summary": "Import block definitions from an external DWG file into the current drawing.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "source_path": {
+          "type": "string"
+        },
+        "block_names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "source_path"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "insert_block",
+    "description": "Insert a block by name at position [x,y]. Rotation in degrees. Attributes as {TAG: value}.",
+    "summary": "Insert a block by name at position [x,y]. Rotation in degrees. Attributes as {TAG: value}.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "position": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "rotation": {
+          "type": "number",
+          "default": 0
+        },
+        "scale_x": {
+          "type": "number",
+          "default": 1.0
+        },
+        "scale_y": {
+          "type": "number",
+          "default": 1.0
+        },
+        "scale_z": {
+          "type": "number",
+          "default": 1.0
+        },
+        "layer": {
+          "type": "string"
+        },
+        "attributes": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "name",
+        "position"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "join_entities",
+    "description": "Join contiguous lines/arcs into a single polyline. First handle must be a polyline.",
+    "summary": "Join contiguous lines/arcs into a single polyline. First handle must be a polyline.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "handles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "handles"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "list_annotation_scales",
+    "description": "List annotation scales available in the drawing and the current one.",
+    "summary": "List annotation scales available in the drawing and the current one.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "list_block_attributes",
+    "description": "List the attribute definitions declared by a block (tags, prompts, defaults).",
+    "summary": "List the attribute definitions declared by a block (tags, prompts, defaults).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "list_blocks",
+    "description": "List all block definitions in the drawing with their attributes.",
+    "summary": "List all block definitions in the drawing with their attributes.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "list_dimension_styles",
+    "description": "List all dimension styles with their properties.",
+    "summary": "List all dimension styles with their properties.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "list_entities",
+    "description": "List entities in model space, with filtering and paging.\n\n`type` accepts any spelling of the type: \"BlockReference\",\n\"AcDbBlockReference\", \"INSERT\" or the alias \"block\" all work, and several\ncan be given comma-separated (\"Line,Arc,LWPOLYLINE\").\n\nSupply min_point and max_point to list only a region — \"crossing\" (default)\nincludes anything the box touches, \"window\" only what is fully inside.\n\nThe answer carries `total` and `truncated`, so you can tell \"that is all of\nthem\" from \"ask for the next page with offset\".",
+    "summary": "List entities in model space, with filtering and paging.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "layer": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "default": 500
+        },
+        "offset": {
+          "type": "integer",
+          "default": 0
+        },
+        "detailed": {
+          "type": "boolean",
+          "default": false
+        },
+        "min_point": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "max_point": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "mode": {
+          "type": "string",
+          "default": "crossing"
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "list_groups",
+    "description": "List named groups and their member counts.",
+    "summary": "List named groups and their member counts.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "list_layer_states",
+    "description": "List saved layer states.",
+    "summary": "List saved layer states.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "list_layers",
+    "description": "List all layers with their properties (color, frozen, locked, current).",
+    "summary": "List all layers with their properties (color, frozen, locked, current).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "list_layouts",
+    "description": "List the drawing's layouts (sheets) with paper size, plot device and scale info.",
+    "summary": "List the drawing's layouts (sheets) with paper size, plot device and scale info.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "include_model": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "list_methods",
+    "description": "List all available methods/commands the AutoCAD plugin supports.",
+    "summary": "List all available methods/commands the AutoCAD plugin supports.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "list_mleader_styles",
+    "description": "List multileader styles with text height, arrow size and landing gap.",
+    "summary": "List multileader styles with text height, arrow size and landing gap.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "list_named_views",
+    "description": "List saved named views.",
+    "summary": "List saved named views.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "list_paper_sizes",
+    "description": "List paper sizes available for a plot device (canonical + display names).\n\nScoped to a layout. For a device-oriented listing that also reports printable\nareas and margins, use `plot_devices`.",
+    "summary": "List paper sizes available for a plot device (canonical + display names).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "layout": {
+          "type": "string"
+        },
+        "device": {
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "list_plot_devices",
+    "description": "List available plotters/printers configured in AutoCAD.\n\nSuperseded by `plot_devices`, which also returns plot style tables and each\ndevice's paper sizes with printable areas and margins. Prefer that one.",
+    "summary": "List available plotters/printers configured in AutoCAD.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "list_sheets",
+    "description": "List the sheets in a .dst sheet set with number, title, name and description.",
+    "summary": "List the sheets in a .dst sheet set with number, title, name and description.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "list_table_styles",
+    "description": "List table styles defined in the drawing.",
+    "summary": "List table styles defined in the drawing.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "list_text_styles",
+    "description": "List all text styles with their font, height, and width factor.",
+    "summary": "List all text styles with their font, height, and width factor.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "list_ucs",
+    "description": "List named user coordinate systems.",
+    "summary": "List named user coordinate systems.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "list_viewports",
+    "description": "List paper-space viewports on a layout with their size, scale and lock state.",
+    "summary": "List paper-space viewports on a layout with their size, scale and lock state.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "layout": {
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "list_xrefs",
+    "description": "List attached xrefs with path, load status, overlay flag and reference count.",
+    "summary": "List attached xrefs with path, load status, overlay flag and reference count.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "lock_viewport",
+    "description": "Lock or unlock a viewport so its scale cannot be changed by zooming.",
+    "summary": "Lock or unlock a viewport so its scale cannot be changed by zooming.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "locked": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "measure_area",
+    "description": "Measure area of a closed entity (polyline, circle, ellipse, hatch). Returns area and perimeter.",
+    "summary": "Measure area of a closed entity (polyline, circle, ellipse, hatch). Returns area and perimeter.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "handle": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "handle"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "measure_between",
+    "description": "Measure distance between two entities (center-to-center and closest approach). Returns dx, dy, distances, and entity descriptions.",
+    "summary": "Measure distance between two entities (center-to-center and closest approach). Returns dx, dy, distances, and entity descriptions.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "handle1": {
+          "type": "string"
+        },
+        "handle2": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "handle1",
+        "handle2"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "measure_distance",
+    "description": "Measure distance between two points. Returns distance, dx, dy, angle.",
+    "summary": "Measure distance between two points. Returns distance, dx, dy, angle.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "point1": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "point2": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        }
+      },
+      "required": [
+        "point1",
+        "point2"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "measure_entity",
+    "description": "Place markers at a fixed interval along a curve (AutoCAD MEASURE).",
+    "summary": "Place markers at a fixed interval along a curve (AutoCAD MEASURE).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "interval": {
+          "type": "number"
+        },
+        "block": {
+          "type": "string"
+        },
+        "layer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "interval"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "measure_text",
+    "description": "Measure the exact bounding box AutoCAD would give a single-line text string.\n\nReturns width/height in drawing units. Use this before placing text to lay\nout tables, columns or labels without overlap, instead of estimating.",
+    "summary": "Measure the exact bounding box AutoCAD would give a single-line text string.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "height": {
+          "type": "number"
+        },
+        "style": {
+          "type": "string"
+        },
+        "width_factor": {
+          "type": "number",
+          "default": 0.0
+        },
+        "oblique": {
+          "type": "number",
+          "default": 0.0
+        }
+      },
+      "required": [
+        "text",
+        "height"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "measure_texts",
+    "description": "Measure many text strings in one round-trip.\n\nEach item is {\"text\": str, \"height\": float, optional \"style\"/\"width_factor\"}.\nFar faster than calling measure_text repeatedly when laying out a table.",
+    "summary": "Measure many text strings in one round-trip.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "merge_table_cells",
+    "description": "Merge (or unmerge) a rectangular range of table cells.",
+    "summary": "Merge (or unmerge) a rectangular range of table cells.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "top_row": {
+          "type": "integer"
+        },
+        "bottom_row": {
+          "type": "integer"
+        },
+        "left_column": {
+          "type": "integer"
+        },
+        "right_column": {
+          "type": "integer"
+        },
+        "unmerge": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "id",
+        "top_row",
+        "bottom_row",
+        "left_column",
+        "right_column"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "mirror_entity",
+    "description": "Mirror an entity across a line. Set erase_source=true to remove the original.",
+    "summary": "Mirror an entity across a line. Set erase_source=true to remove the original.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "handle": {
+          "type": "string"
+        },
+        "mirror_line_start": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "mirror_line_end": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "erase_source": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "handle",
+        "mirror_line_start",
+        "mirror_line_end"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "move_entity",
+    "description": "Move an entity from one point to another.",
+    "summary": "Move an entity from one point to another.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "handle": {
+          "type": "string"
+        },
+        "from_point": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "to_point": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        }
+      },
+      "required": [
+        "handle",
+        "from_point",
+        "to_point"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "offset_entity",
+    "description": "Offset a curve entity (line/arc/polyline/circle) by distance. Side: 'left', 'right', or 'both'.",
+    "summary": "Offset a curve entity (line/arc/polyline/circle) by distance. Side: 'left', 'right', or 'both'.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "handle": {
+          "type": "string"
+        },
+        "distance": {
+          "type": "number"
+        },
+        "side": {
+          "type": "string",
+          "default": "both"
+        }
+      },
+      "required": [
+        "handle",
+        "distance"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "open_sheet_set",
+    "description": "Open a .dst sheet set file and report its name, description and sheet count.",
+    "summary": "Open a .dst sheet set file and report its name, description and sheet count.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "overkill",
+    "description": "Delete exact duplicate/overlapping entities in model space (AutoCAD OVERKILL).\n\nCompares lines, circles, arcs, points and polylines. Destructive — pass\n__confirm=true to proceed.",
+    "summary": "Delete exact duplicate/overlapping entities in model space (AutoCAD OVERKILL).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "tolerance": {
+          "type": "number",
+          "default": 1e-06
+        },
+        "ignore_layer": {
+          "type": "boolean",
+          "default": false
+        },
+        "__confirm": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "plot_devices",
+    "description": "List plot devices, plot style tables, and a device's paper sizes in mm.\n\nCanonical paper names are not guessable - the A1 sheet a localized AutoCAD\nshows as \"ISO A1 (841.00 x 594.00 mm)\" is called\n\"ISO_full_bleed_A1_(841.00_x_594.00_MM)\" in the API. Pass `device` (e.g.\n\"DWG To PDF.pc3\") to get its media list with sheet size, printable area and\nmargins in millimetres, so plot_to_pdf(paper=...) can be given a name that\nexists. `filter` narrows the media list by substring, e.g. \"A1\".\n\n`plotter` is an accepted synonym for `device`. Some MCP hosts route calls\nthrough a bridge that reserves the argument name \"device\" for itself and\nconsumes it before the tool ever sees it; on those hosts `device` silently\narrives empty and `plotter` is the way through. Pass one or the other -\n`device` wins if both are given.\n\nCalled with no device, it lists the sheets of \"DWG To PDF.pc3\". The answer\nalways echoes `requested_device` and `requested_filter`, so a dropped\nargument is visible rather than silently ignored.",
+    "summary": "List plot devices, plot style tables, and a device's paper sizes in mm.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string"
+        },
+        "plotter": {
+          "type": "string"
+        },
+        "filter": {
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "plot_layout",
+    "description": "Set a layout current and queue an EXPORTPDF for it.\n\nPrefer `plot_to_pdf`: it waits for the PDF to actually be written and can trim\nthe page to a plotted window. This tool returns as soon as the command is\nqueued, so the file may not exist yet when it replies.",
+    "summary": "Set a layout current and queue an EXPORTPDF for it.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "output_path": {
+          "type": "string"
+        },
+        "layout": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "output_path"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "plot_to_pdf",
+    "description": "Plot the drawing to PDF and wait for the file to be written.\n\nGoes through the PlottingServices API rather than the command line, so it\nreports the real outcome and the real file size instead of fire-and-forget.\n\noutput_path  Where to write. A relative path resolves next to the drawing.\ndevice       Plot device, default \"DWG To PDF.pc3\". See plot_devices.\nplotter      Synonym for `device`, for MCP hosts whose bridge reserves the\n             argument name \"device\" and eats it before the tool sees it.\n             `device` wins if both are given.\npaper        Canonical or localized media name, or \"auto\" (default): the\n             smallest sheet whose *printable* area fits the window at the\n             requested scale, which is what picks full-bleed sheets over\n             bordered ones when the frame reaches the paper edge.\nstyle_table  Plot style table, default \"monochrome.ctb\"; \"none\" keeps\n             whatever the layout already uses.\narea         extents | window | display | layout | limits. Defaults to\n             \"window\" when `window` is given, otherwise \"extents\".\nwindow       [x1, y1, x2, y2] in drawing units - normally the sheet frame,\n             which in these drawings is a closed LWPOLYLINE on Defpoints.\nscale        \"1=1\" (default), \"1:100\", a number, or \"fit\".\noffset       \"center\" (default) or \"dx,dy\" in millimetres.\norientation  \"auto\" (default), \"portrait\" or \"landscape\".\nlayout       Layout to plot; default the current one.\nlineweights  Honour lineweights, default True.\noverwrite    Replace an existing file, default True.\ntrim         Crop the finished page down to the plotted window, default\n             True. Set False to keep the whole printer sheet.\n\nThe result reports the media actually used and its millimetre size.\n\nAutoCAD can only plot onto a paper size the device defines, so a\nnon-standard sheet (840x594, 297x630) is plotted 1:1 centred on the nearest\nlarger sheet and the surplus is cropped afterwards, here in the MCP server,\nusing pikepdf. That crop needs `pikepdf` installed (it is in\nrequirements.txt) and only happens for a `window` plot at a fixed scale with\n`offset` left at \"center\".\n\nThe answer always says what happened: `trimmed` true or false, with\n`trimmed_size_mm` and `trim_box_mm` when it worked, and `trim_error` or\n`trim_reason` with the text when it did not - a missing pikepdf, a page that\nis already the right size, or a target that does not fit. It is never\nswallowed, and a failed crop never invalidates the plot.",
+    "summary": "Plot the drawing to PDF and wait for the file to be written.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "output_path": {
+          "type": "string"
+        },
+        "device": {
+          "type": "string"
+        },
+        "plotter": {
+          "type": "string"
+        },
+        "paper": {
+          "type": "string"
+        },
+        "style_table": {
+          "type": "string"
+        },
+        "area": {
+          "type": "string"
+        },
+        "window": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "scale": {
+          "type": "string"
+        },
+        "offset": {
+          "type": "string"
+        },
+        "orientation": {
+          "type": "string"
+        },
+        "layout": {
+          "type": "string"
+        },
+        "lineweights": {
+          "type": "boolean",
+          "default": true
+        },
+        "overwrite": {
+          "type": "boolean",
+          "default": true
+        },
+        "trim": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "required": [
+        "output_path"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "polyline_edit",
+    "description": "Edit a polyline: open/close it, set constant width or elevation, or add\nand remove vertices.",
+    "summary": "Edit a polyline: open/close it, set constant width or elevation, or add",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "closed": {
+          "type": "boolean"
+        },
+        "width": {
+          "type": "number"
+        },
+        "elevation": {
+          "type": "number"
+        },
+        "add_vertex": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "index": {
+          "type": "integer"
+        },
+        "remove_vertex": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "purge_drawing",
+    "description": "Remove all unused layers, blocks, styles, and linetypes from the drawing.",
+    "summary": "Remove all unused layers, blocks, styles, and linetypes from the drawing.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "read_command_line",
+    "description": "Read AutoCAD's recent command activity and the last command-line prompt.\n\nPass the \"since\" value returned by execute_command to see exactly what that\ncall produced: which commands started, ended, failed or were cancelled, plus\nthe last line AutoCAD echoed (where messages like \"Unknown command\" appear).\nCall with since=0 for the whole recent history.",
+    "summary": "Read AutoCAD's recent command activity and the last command-line prompt.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "since": {
+          "type": "integer",
+          "default": 0
+        },
+        "limit": {
+          "type": "integer",
+          "default": 20
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "read_external_dwg",
+    "description": "Inspect a DWG file WITHOUT opening it in AutoCAD.\n\nReads it as a side database and reports layers, blocks, xrefs, layouts and\nentity counts. Use this to check a drawing before opening it.",
+    "summary": "Inspect a DWG file WITHOUT opening it in AutoCAD.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "include_layers": {
+          "type": "boolean",
+          "default": true
+        },
+        "include_blocks": {
+          "type": "boolean",
+          "default": true
+        },
+        "include_layouts": {
+          "type": "boolean",
+          "default": true
+        },
+        "include_entity_counts": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "reload_xref",
+    "description": "Reload an xref to pick up changes made to the source DWG.",
+    "summary": "Reload an xref to pick up changes made to the source DWG.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "rename_block",
+    "description": "Rename a block definition.",
+    "summary": "Rename a block definition.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "new_name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "new_name"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "rename_layer",
+    "description": "Rename a layer. Cannot rename layer '0'.",
+    "summary": "Rename a layer. Cannot rename layer '0'.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "old_name": {
+          "type": "string"
+        },
+        "new_name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "old_name",
+        "new_name"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "rename_layout",
+    "description": "Rename a layout.",
+    "summary": "Rename a layout.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "new_name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "new_name"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "restore_layer_state",
+    "description": "Restore a previously saved layer state.",
+    "summary": "Restore a previously saved layer state.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "restore_view",
+    "description": "Restore a saved named view in the active viewport.",
+    "summary": "Restore a saved named view in the active viewport.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "reverse_polyline",
+    "description": "Reverse a curve's direction (start and end swap).",
+    "summary": "Reverse a curve's direction (start and end swap).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "revolve_profile",
+    "description": "Revolve closed profile curves around an axis into a 3D solid.",
+    "summary": "Revolve closed profile curves around an axis into a 3D solid.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "axis_point": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "axis_direction": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "angle": {
+          "type": "number",
+          "default": 360.0
+        },
+        "erase_source": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "required": [
+        "ids",
+        "axis_point"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "rotate_entity",
+    "description": "Rotate an entity around a base point by an angle in degrees.",
+    "summary": "Rotate an entity around a base point by an angle in degrees.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "handle": {
+          "type": "string"
+        },
+        "base_point": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "angle": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "handle",
+        "base_point",
+        "angle"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "save_layer_state",
+    "description": "Save current layer visibility/colour/lock settings as a named layer state.",
+    "summary": "Save current layer visibility/colour/lock settings as a named layer state.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "overwrite": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "scale_entity",
+    "description": "Scale an entity from a base point by a scale factor.",
+    "summary": "Scale an entity from a base point by a scale factor.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "handle": {
+          "type": "string"
+        },
+        "base_point": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "factor": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "handle",
+        "base_point",
+        "factor"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "search_text",
+    "description": "Search ALL text in the drawing (DBText, MText, block attributes, block names) for a keyword. Returns matching text with positions. Use this to find rooms, labels, equipment, annotations by name.",
+    "summary": "Search ALL text in the drawing (DBText, MText, block attributes, block names) for a keyword. Returns matching text with positions. Use this to find rooms, labels, equipment, annotations by name.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "keyword": {
+          "type": "string"
+        },
+        "case_sensitive": {
+          "type": "boolean",
+          "default": false
+        },
+        "limit": {
+          "type": "integer",
+          "default": 100
+        }
+      },
+      "required": [
+        "keyword"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "select_by_properties",
+    "description": "Find entities matching property filters (AND logic).\n\n`type` accepts the .NET name (\"BlockReference\"), the AutoCAD class name\n(\"AcDbBlockReference\"), the DXF name (\"INSERT\") or an alias (\"block\",\n\"text\", \"anytext\", \"pline\", \"dimension\", \"curve\"), and a comma-separated\nlist of any of those. `block_name` further restricts block references to\none block definition.",
+    "summary": "Find entities matching property filters (AND logic).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "layer": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "color": {
+          "type": "integer"
+        },
+        "linetype": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "default": 500
+        },
+        "offset": {
+          "type": "integer",
+          "default": 0
+        },
+        "detailed": {
+          "type": "boolean",
+          "default": false
+        },
+        "block_name": {
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "select_by_window",
+    "description": "Find entities in a rectangular region.\n\nmode=\"window\" (default) returns only entities fully inside the box;\nmode=\"crossing\" also returns anything the box touches — use it when picking\na title block or a sheet region, whose entities stick out past the frame.\n\nOptional layer/type filters narrow the result; `type` accepts \"INSERT\",\n\"AcDbBlockReference\", \"BlockReference\" or \"block\" alike. The answer carries\n`total` and `truncated` so a cut-off list is never mistaken for a complete one.",
+    "summary": "Find entities in a rectangular region.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "min_point": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "max_point": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "limit": {
+          "type": "integer",
+          "default": 500
+        },
+        "mode": {
+          "type": "string",
+          "default": "window"
+        },
+        "layer": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "offset": {
+          "type": "integer",
+          "default": 0
+        },
+        "detailed": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "min_point",
+        "max_point"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "set_annotation_scale",
+    "description": "Set the current annotation scale (CANNOSCALE), e.g. \"1:100\".",
+    "summary": "Set the current annotation scale (CANNOSCALE), e.g. \"1:100\".",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "set_attribute_values",
+    "description": "Set attribute values on one block reference, as {\"TAG\": \"value\"}.\n\nReports which tags were updated and which were not found on the block.",
+    "summary": "Set attribute values on one block reference, as {\"TAG\": \"value\"}.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "attributes": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "attributes"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "set_current_layer",
+    "description": "Set the active/current layer by name.",
+    "summary": "Set the active/current layer by name.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "set_current_layout",
+    "description": "Switch the active layout/sheet (use 'Model' for model space).",
+    "summary": "Switch the active layout/sheet (use 'Model' for model space).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "set_drawing_properties",
+    "description": "Set drawing properties, including custom name/value fields used by title blocks.",
+    "summary": "Set drawing properties, including custom name/value fields used by title blocks.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "keywords": {
+          "type": "string"
+        },
+        "comments": {
+          "type": "string"
+        },
+        "revision_number": {
+          "type": "string"
+        },
+        "hyperlink_base": {
+          "type": "string"
+        },
+        "custom": {
+          "type": "object"
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "set_draworder",
+    "description": "Change draw order so entities render in front of or behind others.\n\nposition: top, bottom, above or below. above/below also need reference_id.",
+    "summary": "Change draw order so entities render in front of or behind others.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "position": {
+          "type": "string",
+          "default": "top"
+        },
+        "reference_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ids"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "set_dynamic_block_property",
+    "description": "Set one dynamic block parameter (e.g. a visibility state, length or angle).",
+    "summary": "Set one dynamic block parameter (e.g. a visibility state, length or angle).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "property": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "property",
+        "value"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "set_entity_properties",
+    "description": "Change properties of an existing entity: layer, color (ACI 0-255), linetype, lineweight.",
+    "summary": "Change properties of an existing entity: layer, color (ACI 0-255), linetype, lineweight.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "handle": {
+          "type": "string"
+        },
+        "layer": {
+          "type": "string"
+        },
+        "color": {
+          "type": "integer"
+        },
+        "linetype": {
+          "type": "string"
+        },
+        "lineweight": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "handle"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "set_layer_properties",
+    "description": "Modify layer properties. Only specified parameters are changed.",
+    "summary": "Modify layer properties. Only specified parameters are changed.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "color": {
+          "type": "integer"
+        },
+        "is_off": {
+          "type": "boolean"
+        },
+        "is_frozen": {
+          "type": "boolean"
+        },
+        "is_locked": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "set_page_setup",
+    "description": "Configure a layout's page setup before plotting.\n\ndevice: plotter/printer name (see list_plot_devices).\npaper_size: canonical media name (see list_paper_sizes).\nplot_type: Display, Extents, Limits, View, Window or Layout.\nscale: \"1:100\" style ratio; or set scale_to_fit=true.\nrotation: 0, 90, 180 or 270.",
+    "summary": "Configure a layout's page setup before plotting.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "layout": {
+          "type": "string"
+        },
+        "device": {
+          "type": "string"
+        },
+        "paper_size": {
+          "type": "string"
+        },
+        "plot_type": {
+          "type": "string"
+        },
+        "scale": {
+          "type": "string"
+        },
+        "scale_to_fit": {
+          "type": "boolean",
+          "default": false
+        },
+        "centered": {
+          "type": "boolean"
+        },
+        "rotation": {
+          "type": "string"
+        },
+        "plot_style_table": {
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "set_server_options",
+    "description": "Change and persist the safety posture.\n\nread_only=True refuses every drawing-modifying tool (safe inspection mode).\nconfirm_destructive=True (default) makes erase/delete/purge tools require\n__confirm=true. audit_log toggles the JSONL activity log.",
+    "summary": "Change and persist the safety posture.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "read_only": {
+          "type": "boolean"
+        },
+        "confirm_destructive": {
+          "type": "boolean"
+        },
+        "audit_log": {
+          "type": "boolean"
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "set_system_variable",
+    "description": "Set an AutoCAD system variable (e.g., DIMTXT, LTSCALE, OSMODE). Value can be number or string.",
+    "summary": "Set an AutoCAD system variable (e.g., DIMTXT, LTSCALE, OSMODE). Value can be number or string.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "value": {}
+      },
+      "required": [
+        "name",
+        "value"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "set_table_cell",
+    "description": "Write table cells.\n\nEither row+column+text for a single cell, or cells as a list of\n{\"row\": r, \"column\": c, \"text\": \"...\"} to update many at once.",
+    "summary": "Write table cells.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "row": {
+          "type": "integer"
+        },
+        "column": {
+          "type": "integer"
+        },
+        "text": {
+          "type": "string"
+        },
+        "cells": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "text_height": {
+          "type": "number",
+          "default": 0.0
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "set_ucs",
+    "description": "Set the active UCS.\n\nPass name to activate a saved UCS ('World' resets), or origin (+ optional\nx_axis/y_axis) to define one, optionally saving it as save_as.",
+    "summary": "Set the active UCS.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "origin": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "x_axis": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "y_axis": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "save_as": {
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "set_units",
+    "description": "Set drawing units. linear_units: 1=Scientific,2=Decimal,3=Engineering,4=Architectural. insert_units: 4=mm,5=cm,6=m.",
+    "summary": "Set drawing units. linear_units: 1=Scientific,2=Decimal,3=Engineering,4=Architectural. insert_units: 4=mm,5=cm,6=m.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "linear_units": {
+          "type": "integer"
+        },
+        "precision": {
+          "type": "integer"
+        },
+        "insert_units": {
+          "type": "integer"
+        },
+        "angle_units": {
+          "type": "integer"
+        },
+        "angle_precision": {
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "set_viewport_scale",
+    "description": "Set a viewport's scale, e.g. \"1:100\". Temporarily unlocks a locked viewport.",
+    "summary": "Set a viewport's scale, e.g. \"1:100\". Temporarily unlocks a locked viewport.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "scale": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "scale"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "set_xdata",
+    "description": "Attach extended entity data (XData) to an entity under an application name.\n\nRegisters the application name automatically. Useful for tagging entities\nwith your own metadata that survives in the DWG.",
+    "summary": "Attach extended entity data (XData) to an entity under an application name.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "app_name": {
+          "type": "string"
+        },
+        "values": {
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "app_name",
+        "values"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "set_xref_path",
+    "description": "Repoint a broken or moved xref at a new file path.",
+    "summary": "Repoint a broken or moved xref at a new file path.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "reload": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "required": [
+        "name",
+        "path"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "sync_attributes",
+    "description": "Add attributes to existing block references that were added to the block\ndefinition after they were inserted (equivalent to ATTSYNC).",
+    "summary": "Add attributes to existing block references that were added to the block",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "system_status",
+    "description": "Get the AutoCAD plugin status, version, and active document info.",
+    "summary": "Get the AutoCAD plugin status, version, and active document info.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "undo_last",
+    "description": "Undo the last N operations in AutoCAD.",
+    "summary": "Undo the last N operations in AutoCAD.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "count": {
+          "type": "integer",
+          "default": 1
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "ungroup",
+    "description": "Remove a group definition; its entities stay in the drawing.\nDestructive — pass __confirm=true to proceed.",
+    "summary": "Remove a group definition; its entities stay in the drawing.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "__confirm": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "unload_xref",
+    "description": "Unload an xref (keeps the attachment, hides the geometry).",
+    "summary": "Unload an xref (keeps the attachment, hides the geometry).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "update_dimensions",
+    "description": "Regenerate dimensions from current settings, optionally reassigning a style.\n\nOmit ids to update every dimension in the current space.",
+    "summary": "Regenerate dimensions from current settings, optionally reassigning a style.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "style": {
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "zoom_extents",
+    "description": "Zoom to show all entities in the drawing.",
+    "summary": "Zoom to show all entities in the drawing.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "zoom_window",
+    "description": "Zoom to a specific rectangular area defined by min [x,y] and max [x,y] corners.",
+    "summary": "Zoom to a specific rectangular area defined by min [x,y] and max [x,y] corners.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "min_point": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "max_point": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        }
+      },
+      "required": [
+        "min_point",
+        "max_point"
+      ],
+      "additionalProperties": true
+    }
+  }
+]

@@ -8,11 +8,11 @@ using static AutoCADMCPPlugin.Commands.EntityHelper;
 
 namespace AutoCADMCPPlugin.Commands
 {
-    public class CreateDimensionStyleCommand : ICommand
+    public class CreateDimensionStyleCommand : AcadCommand
     {
-        public string MethodName => "create_dimension_style";
+        public override string MethodName => "create_dimension_style";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -83,11 +83,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class CreateTextStyleCommand : ICommand
+    public class CreateTextStyleCommand : AcadCommand
     {
-        public string MethodName => "create_text_style";
+        public override string MethodName => "create_text_style";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -145,11 +145,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class ListDimensionStylesCommand : ICommand
+    public class ListDimensionStylesCommand : AcadCommand
     {
-        public string MethodName => "list_dimension_styles";
+        public override string MethodName => "list_dimension_styles";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -180,11 +180,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class ListTextStylesCommand : ICommand
+    public class ListTextStylesCommand : AcadCommand
     {
-        public string MethodName => "list_text_styles";
+        public override string MethodName => "list_text_styles";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");

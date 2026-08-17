@@ -87,11 +87,11 @@ namespace AutoCADMCPPlugin.Commands
     /// <c>save</c> defaults to false — the drawing is closed and any changes
     /// are discarded. Pass save=true to write the file before closing.
     /// </summary>
-    public class DrawingCloseCommand : ICommand
+    public class DrawingCloseCommand : AcadCommand
     {
-        public string MethodName => "drawing_close";
+        public override string MethodName => "drawing_close";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             string path = parameters?["path"]?.ToString();
             bool save = parameters?["save"]?.Value<bool>() ?? false;
@@ -206,11 +206,11 @@ namespace AutoCADMCPPlugin.Commands
     /// Close every open drawing. <c>save</c> defaults to false.
     /// <c>keep</c> optionally names one drawing (path or file name) to leave open.
     /// </summary>
-    public class CloseAllCommand : ICommand
+    public class CloseAllCommand : AcadCommand
     {
-        public string MethodName => "close_all";
+        public override string MethodName => "close_all";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             bool save = parameters?["save"]?.Value<bool>() ?? false;
             string keep = parameters?["keep"]?.ToString();
@@ -269,11 +269,11 @@ namespace AutoCADMCPPlugin.Commands
     }
 
     /// <summary>List every open drawing, marking the active one.</summary>
-    public class DrawingListCommand : ICommand
+    public class DrawingListCommand : AcadCommand
     {
-        public string MethodName => "drawing_list";
+        public override string MethodName => "drawing_list";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document active = Application.DocumentManager.MdiActiveDocument;
             var docs = new JArray();
@@ -309,11 +309,11 @@ namespace AutoCADMCPPlugin.Commands
     /// returns a "since" sequence number; pass it here to get exactly the
     /// command activity that call produced, plus the last command-line prompt.
     /// </summary>
-    public class ReadCommandLineCommand : ICommand
+    public class ReadCommandLineCommand : AcadCommand
     {
-        public string MethodName => "read_command_line";
+        public override string MethodName => "read_command_line";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             long since = parameters?["since"]?.Value<long>() ?? 0;
             int limit = parameters?["limit"]?.Value<int>() ?? 20;

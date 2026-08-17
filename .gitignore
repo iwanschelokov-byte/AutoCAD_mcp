@@ -8,6 +8,17 @@ revit-test/
 # Build outputs
 autocad-plugin/src/AutoCADMCPPlugin/bin/
 autocad-plugin/src/AutoCADMCPPlugin/obj/
+autocad-plugin/src/AutoCADMCP.Server/bin/
+autocad-plugin/src/AutoCADMCP.Server/obj/
+autocad-plugin/src/AutoCADMCP.Server/publish/
+
+# Staged bundle and installer artifacts (rebuilt by build/build-all.ps1).
+# The per-target DLLs under dist/net48 and dist/net8.0-windows ARE committed,
+# so users can install without a .NET SDK.
+autocad-plugin/dist/AutoCADMCPPlugin.bundle/
+autocad-plugin/dist/server/
+autocad-plugin/dist/*.exe
+autocad-plugin/dist/*.zip
 
 # Python
 __pycache__/

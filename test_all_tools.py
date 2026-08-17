@@ -50,7 +50,7 @@ print('\n--- DRAWING ---')
 test('drawing_info', 'drawing_info')
 test('execute_command', 'execute_command', {'command': 'REGEN'})
 test('set_units', 'set_units', {'linear_units': 4, 'angular_units': 0})
-test('purge_drawing', 'purge_drawing')
+test('purge_drawing', 'purge_drawing', {'__confirm': True})
 # drawing_new, drawing_open, drawing_save tested separately
 
 # === STYLES (4) ===
@@ -69,7 +69,7 @@ test('list_layers', 'list_layers')
 test('set_current_layer', 'set_current_layer', {'name': 'TestLayer'})
 test('set_layer_properties', 'set_layer_properties', {'name': 'TestLayer', 'color': 2})
 test('rename_layer', 'rename_layer', {'old_name': 'RenameMe', 'new_name': 'Renamed'})
-test('delete_layer', 'delete_layer', {'name': 'DeleteMe'})
+test('delete_layer', 'delete_layer', {'name': 'DeleteMe', '__confirm': True})
 send('set_current_layer', {'name': '0'})
 
 # === ENTITY CREATION (11) ===
@@ -116,7 +116,7 @@ if copy_h:
     test('mirror_entity', 'mirror_entity', {'handle': copy_h, 'mirror_line_start': [30000,0], 'mirror_line_end': [30000,20000]})
 test('set_entity_properties', 'set_entity_properties', {'handle': line_h, 'color': 1})
 if copy_h:
-    test('erase_entity', 'erase_entity', {'handle': copy_h})
+    test('erase_entity', 'erase_entity', {'handle': copy_h, '__confirm': True})
 
 # === ADVANCED MODIFY (6 new) ===
 print('\n--- ADVANCED MODIFY ---')
@@ -176,7 +176,7 @@ test('bulk_create', 'bulk_create', {'entities': [
 ok_be, r_be, _ = send('create_line', {'start': [60000,0], 'end': [61000,0], 'layer': 'TestLayer'})
 be_h = r_be['id'] if ok_be and r_be else None
 if be_h:
-    test('bulk_erase', 'bulk_erase', {'handles': [be_h]})
+    test('bulk_erase', 'bulk_erase', {'handles': [be_h], '__confirm': True})
 else:
     print('  [SKIP] bulk_erase - could not create test entity')
 
