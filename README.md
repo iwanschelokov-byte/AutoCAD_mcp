@@ -33,7 +33,7 @@ AI-powered AutoCAD automation via the **Model Context Protocol (MCP)**. Enables 
 
 ### Two MCP servers, same tools
 
-Both expose the identical 183 tools; pick whichever suits your setup.
+Both expose the identical 184 tools; pick whichever suits your setup.
 
 | | C# server | Python server |
 |---|---|---|
@@ -50,7 +50,7 @@ if the generated `tools.json` is stale.
 
 The C# plugin loads inside AutoCAD as an addin and exposes the same JSON-RPC pipeline over **two transports** simultaneously:
 
-1. **TCP socket on `localhost:8081`** — used by whichever MCP server you run, which marshals the 183 tools over stdio for Claude / Claude Code / Claude Desktop.
+1. **TCP socket on `localhost:8081`** — used by whichever MCP server you run, which marshals the 184 tools over stdio for Claude / Claude Code / Claude Desktop.
 2. **HTTP loopback on `localhost:8082`** — used by browser apps that can't open raw TCP sockets (a `fetch()` call to `http://127.0.0.1:8082/jsonrpc` reaches every command in the registry, with CORS headers + Chrome Private-Network-Access support out of the box).
 
 Both transports route through the same `JsonRpcHandler`, so every tool (`create_line`, `create_table`, `capture_screenshot`, …) is reachable identically from either path. Commands are marshaled to AutoCAD's main UI thread via `Application.Idle` + `DocumentLock` — except introspection tools, which answer directly so tool discovery keeps working while AutoCAD is busy.
@@ -59,7 +59,7 @@ Both transports route through the same `JsonRpcHandler`, so every tool (`create_
 
 AutoCAD's .NET API is single-threaded. The plugin uses `Application.Idle` event + `DocumentLock` to safely execute commands from the socket handler threads on the main thread.
 
-## Features — 183 MCP Tools
+## Features — 184 MCP Tools
 
 ### System (6)
 | Tool | Description |
@@ -191,6 +191,15 @@ AutoCAD's .NET API is single-threaded. The plugin uses `Application.Idle` event 
 | `search_text` | Find all text/mtext/block names matching a keyword |
 | `find_nearest` | Find entities nearest to a point (by type/layer, sorted by distance) |
 | `measure_between` | Measure distance between two entities by handle |
+
+### Code Execution (1, opt-in)
+| Tool | Description |
+|------|-------------|
+| `execute_python` | Run Python in the MCP server process with `call(method, params)` pre-wired — for multi-step geometry that would otherwise cost dozens of round-trips |
+
+> **Disabled by default.** Set `AUTOCAD_MCP_ALLOW_EXEC=1` to enable. The code is
+> not sandboxed and runs with the server process's privileges; drawing
+> operations still pass through the read-only and confirmation gates.
 
 ### Server Introspection & Safety (3)
 | Tool | Description |
@@ -665,7 +674,7 @@ autocad-plugin/
     │       ├── ICommand.cs        # Command interface
     │       └── CommandResult.cs   # Result wrapper
     └── mcp_server/                # Python MCP Server
-        ├── server.py              # 183 MCP tools via FastMCP
+        ├── server.py              # 184 MCP tools via FastMCP
         ├── autocad_client.py      # Async TCP client with auto-reconnect
         └── requirements.txt
 ```

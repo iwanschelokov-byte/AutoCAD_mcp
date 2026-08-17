@@ -16,9 +16,13 @@ Handles:
 """
 
 import os
+import io
 import json
+import math
 import asyncio
 import logging
+import traceback
+import contextlib
 from mcp.server.fastmcp import FastMCP
 from autocad_client import get_client
 
@@ -1674,9 +1678,9 @@ async def create_layout(name: str, set_current: bool = False) -> str:
 
 
 @mcp.tool()
-async def delete_layout(name: str, __confirm: bool = False) -> str:
+async def delete_layout(name: str, confirm: bool = False) -> str:
     """Delete a layout. Destructive — pass __confirm=true to proceed."""
-    return await _call("delete_layout", {"name": name, "__confirm": __confirm})
+    return await _call("delete_layout", {"name": name, "__confirm": confirm})
 
 
 @mcp.tool()
@@ -1842,9 +1846,9 @@ async def unload_xref(name: str) -> str:
 
 
 @mcp.tool()
-async def detach_xref(name: str, __confirm: bool = False) -> str:
+async def detach_xref(name: str, confirm: bool = False) -> str:
     """Detach an xref completely. Destructive — pass __confirm=true to proceed."""
-    return await _call("detach_xref", {"name": name, "__confirm": __confirm})
+    return await _call("detach_xref", {"name": name, "__confirm": confirm})
 
 
 @mcp.tool()
@@ -1971,10 +1975,10 @@ async def rename_block(name: str, new_name: str) -> str:
 
 
 @mcp.tool()
-async def delete_block_definition(name: str, __confirm: bool = False) -> str:
+async def delete_block_definition(name: str, confirm: bool = False) -> str:
     """Delete an unused block definition. Refuses if references still exist.
     Destructive — pass __confirm=true to proceed."""
-    return await _call("delete_block_definition", {"name": name, "__confirm": __confirm})
+    return await _call("delete_block_definition", {"name": name, "__confirm": confirm})
 
 
 @mcp.tool()
@@ -2118,14 +2122,14 @@ async def fillet_entities(id1: str, id2: str, radius: float) -> str:
 
 @mcp.tool()
 async def overkill(tolerance: float = 1e-6, ignore_layer: bool = False,
-                   __confirm: bool = False) -> str:
+                   confirm: bool = False) -> str:
     """Delete exact duplicate/overlapping entities in model space (AutoCAD OVERKILL).
 
     Compares lines, circles, arcs, points and polylines. Destructive — pass
     __confirm=true to proceed.
     """
     return await _call("overkill", {
-        "tolerance": tolerance, "ignore_layer": ignore_layer, "__confirm": __confirm,
+        "tolerance": tolerance, "ignore_layer": ignore_layer, "__confirm": confirm,
     })
 
 
@@ -2334,10 +2338,10 @@ async def add_to_group(name: str, ids: list[str], remove: bool = False) -> str:
 
 
 @mcp.tool()
-async def ungroup(name: str, __confirm: bool = False) -> str:
+async def ungroup(name: str, confirm: bool = False) -> str:
     """Remove a group definition; its entities stay in the drawing.
     Destructive — pass __confirm=true to proceed."""
-    return await _call("ungroup", {"name": name, "__confirm": __confirm})
+    return await _call("ungroup", {"name": name, "__confirm": confirm})
 
 
 @mcp.tool()
@@ -2362,9 +2366,9 @@ async def list_layer_states() -> str:
 
 
 @mcp.tool()
-async def delete_layer_state(name: str, __confirm: bool = False) -> str:
+async def delete_layer_state(name: str, confirm: bool = False) -> str:
     """Delete a saved layer state. Destructive — pass __confirm=true to proceed."""
-    return await _call("delete_layer_state", {"name": name, "__confirm": __confirm})
+    return await _call("delete_layer_state", {"name": name, "__confirm": confirm})
 
 
 @mcp.tool()
@@ -2804,6 +2808,113 @@ async def list_sheets(path: str) -> str:
 async def close_sheet_set(path: str) -> str:
     """Close an open sheet set database."""
     return await _call("close_sheet_set", {"path": path})
+
+
+# =============================================================================
+# In-process Python execution
+# =============================================================================
+
+# Arbitrary code execution is OFF unless explicitly enabled. This server is
+# installed from a public repository, and nobody should acquire an unsandboxed
+# Python evaluator just by installing an AutoCAD plugin. Enable deliberately:
+#
+#     set AUTOCAD_MCP_ALLOW_EXEC=1
+#
+# Executed code is NOT sandboxed - it has this process's full filesystem and
+# network access. It reaches AutoCAD only through the plugin's JSON-RPC port,
+# so read-only mode and destructive confirmation still apply to what it draws.
+_ALLOW_EXEC = os.environ.get("AUTOCAD_MCP_ALLOW_EXEC", "").strip().lower() in (
+    "1", "true", "yes", "on",
+)
+
+
+@mcp.tool()
+async def execute_python(code: str, timeout: float = 60.0) -> str:
+    """Run Python inside the MCP server process, with AutoCAD pre-wired.
+
+    For multi-step geometry that would otherwise cost dozens of round-trips:
+    loops, computed coordinates, conditional drawing.
+
+    Pre-bound names:
+      call(method, params)  invoke any plugin method, returns the decoded result
+      tools()               list every available plugin method name
+      json, math            preloaded modules
+    Printed output is captured. If the snippet assigns `result`, it is returned too.
+
+    Example:
+        for i in range(10):
+            call("create_circle", {"center": [i * 30, 0], "radius": 10})
+        result = call("drawing_info")
+
+    DISABLED by default - set AUTOCAD_MCP_ALLOW_EXEC=1 to enable. The code is not
+    sandboxed and runs with this process's privileges. Drawing operations still
+    pass through the plugin's safety gates.
+    """
+    if not _ALLOW_EXEC:
+        return json.dumps({
+            "success": False,
+            "error": "execute_python is disabled.",
+            "hint": "Set AUTOCAD_MCP_ALLOW_EXEC=1 in the MCP server environment. "
+                    "It runs unsandboxed Python in the server process, so enable "
+                    "it only if you want that.",
+        }, indent=2)
+
+    if not code or not code.strip():
+        return json.dumps({"success": False, "error": "No code supplied."}, indent=2)
+
+    loop = asyncio.get_running_loop()
+    deadline = max(1.0, float(timeout))
+
+    def _call_sync(method: str, params: dict | None = None):
+        """Sync bridge so snippets can be written in plain sequential style."""
+        future = asyncio.run_coroutine_threadsafe(_raw(method, params), loop)
+        return future.result(deadline)
+
+    def _tools_sync():
+        res = _call_sync("list_methods")
+        return res.get("methods", []) if isinstance(res, dict) else []
+
+    namespace: dict = {
+        "call": _call_sync,
+        "tools": _tools_sync,
+        "json": json,
+        "math": math,
+        "__name__": "__autocad_snippet__",
+    }
+
+    buffer = io.StringIO()
+
+    def _run():
+        with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(buffer):
+            exec(code, namespace)          # noqa: S102 - deliberate, gated above
+
+    try:
+        await asyncio.wait_for(loop.run_in_executor(None, _run), timeout=deadline)
+    except asyncio.TimeoutError:
+        return json.dumps({
+            "success": False,
+            "error": f"Timed out after {deadline:g}s.",
+            # A Python thread cannot be force-killed, so do not imply it stopped.
+            "note": "The snippet may still be running in the background; restart "
+                    "the MCP server if it is stuck.",
+            "output": buffer.getvalue()[-4000:],
+        }, indent=2)
+    except Exception as exc:                       # noqa: BLE001 - report anything
+        return json.dumps({
+            "success": False,
+            "error": f"{type(exc).__name__}: {exc}",
+            "traceback": traceback.format_exc()[-4000:],
+            "output": buffer.getvalue()[-4000:],
+        }, indent=2)
+
+    payload: dict = {"success": True, "output": buffer.getvalue()[-8000:]}
+    if "result" in namespace:
+        try:
+            json.dumps(namespace["result"])        # include only if serialisable
+            payload["result"] = namespace["result"]
+        except (TypeError, ValueError):
+            payload["result"] = repr(namespace["result"])[:2000]
+    return json.dumps(payload, indent=2)
 
 
 # =============================================================================

@@ -78,7 +78,11 @@ namespace AutoCADMCPPlugin.Core
             // ---- Safety gate: destructive confirmation -----------------------
             if (Settings.ConfirmDestructive && command.IsDestructive)
             {
-                bool confirmed = parameters["__confirm"]?.Value<bool>() ?? false;
+                // Accept both spellings: "__confirm" is the wire form, but MCP
+                // servers cannot expose a parameter starting with an underscore,
+                // so tool wrappers surface it as "confirm".
+                bool confirmed = (parameters["__confirm"] ?? parameters["confirm"])
+                                     ?.Value<bool>() ?? false;
                 if (!confirmed)
                 {
                     var msg = $"'{method}' is destructive and requires confirmation. " +

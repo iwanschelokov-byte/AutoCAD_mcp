@@ -9,7 +9,7 @@ _Last updated: 2026-08-17 (rebased onto PR #4)_
 
 | Metric | Before | Now |
 |---|---|---|
-| MCP tools | 73 | **183** |
+| MCP tools | 73 | **184** |
 | C# commands registered | 76 | **182** |
 | AutoCAD versions | 2022–2026 | **2021–2027** |
 | Build targets | net48, net8.0 | net48, net8.0, **net10.0** (opt-in) |
@@ -189,17 +189,21 @@ rows vs total_rows, and `.gitattributes` for the CRLF noise.
 Already fixed by PR #4, not reimplemented: `get_entity` detail fields and the
 `plot_to_pdf` rewrite.
 
-**Deliberately not implemented — needs your decision, not a bug fix:**
+**Both deferred items now implemented, each gated off by default:**
 
-1. **`execute_python(code)`** — runs LLM-generated Python in the MCP server
-   process. It does *not* bypass the AutoCAD safety gates (generated code still
-   goes through the plugin's JSON-RPC port, so read-only mode and destructive
-   confirmation still apply), but it is unsandboxed execution on the user's
-   machine with full filesystem and network access. That is a security posture
-   choice for the project owner to make explicitly.
-2. **`mcpagent` AutoCode Agent** — a separate FastMCP server that calls an LLM to
-   generate drawing code. A new component with its own API-key handling, not a
-   fix to this one. The issue itself notes its hardcoded relative path.
+1. **`execute_python(code)`** — runs Python in the MCP server process with
+   `call()` pre-wired. Requires `AUTOCAD_MCP_ALLOW_EXEC=1`. Not sandboxed, but
+   drawing operations still pass through the plugin's safety gates.
+2. **`mcpagent` AutoCode Agent** (`src/mcpagent/`) — a separate MCP server that
+   generates AutoCAD code from a plain-language request. `generate_drawing_code`
+   needs no permission; `draw` requires `AUTOCAD_AGENT_ALLOW_EXEC=1`. Its tool
+   catalogue is built from the same generated `tools.json`, so adding a plugin
+   tool reaches the agent with no edit.
+
+   **Unverified against the live API** — built without credentials on this
+   machine. The request shape is confirmed valid (SDK accepts every parameter;
+   the API rejects a dummy-key request at auth, not as malformed), but no real
+   generation has run. Expect prompt iteration on first real use.
 
 ## Remaining work
 

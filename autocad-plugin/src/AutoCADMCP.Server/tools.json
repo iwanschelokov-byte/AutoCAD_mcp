@@ -2166,7 +2166,7 @@
         "name": {
           "type": "string"
         },
-        "__confirm": {
+        "confirm": {
           "type": "boolean",
           "default": false
         }
@@ -2204,7 +2204,7 @@
         "name": {
           "type": "string"
         },
-        "__confirm": {
+        "confirm": {
           "type": "boolean",
           "default": false
         }
@@ -2225,7 +2225,7 @@
         "name": {
           "type": "string"
         },
-        "__confirm": {
+        "confirm": {
           "type": "boolean",
           "default": false
         }
@@ -2246,7 +2246,7 @@
         "name": {
           "type": "string"
         },
-        "__confirm": {
+        "confirm": {
           "type": "boolean",
           "default": false
         }
@@ -2499,6 +2499,27 @@
       },
       "required": [
         "command"
+      ],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "execute_python",
+    "description": "Run Python inside the MCP server process, with AutoCAD pre-wired.\n\nFor multi-step geometry that would otherwise cost dozens of round-trips:\nloops, computed coordinates, conditional drawing.\n\nPre-bound names:\n  call(method, params)  invoke any plugin method, returns the decoded result\n  tools()               list every available plugin method name\n  json, math            preloaded modules\nPrinted output is captured. If the snippet assigns `result`, it is returned too.\n\nExample:\n    for i in range(10):\n        call(\"create_circle\", {\"center\": [i * 30, 0], \"radius\": 10})\n    result = call(\"drawing_info\")\n\nDISABLED by default - set AUTOCAD_MCP_ALLOW_EXEC=1 to enable. The code is not\nsandboxed and runs with this process's privileges. Drawing operations still\npass through the plugin's safety gates.",
+    "summary": "Run Python inside the MCP server process, with AutoCAD pre-wired.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "timeout": {
+          "type": "number",
+          "default": 60.0
+        }
+      },
+      "required": [
+        "code"
       ],
       "additionalProperties": true
     }
@@ -3570,7 +3591,7 @@
           "type": "boolean",
           "default": false
         },
-        "__confirm": {
+        "confirm": {
           "type": "boolean",
           "default": false
         }
@@ -4651,7 +4672,7 @@
         "name": {
           "type": "string"
         },
-        "__confirm": {
+        "confirm": {
           "type": "boolean",
           "default": false
         }

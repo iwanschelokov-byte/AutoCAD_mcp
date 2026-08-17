@@ -1,7 +1,7 @@
 {
   "_comment": [
-    "Copy this to .mcp.json and keep ONE of the two server entries below.",
-    "Both expose the same 180 tools.",
+    "Copy this to .mcp.json and keep ONE of the two AutoCAD server entries.",
+    "Both expose the same 183 tools.",
     "",
     "autocad-mcp        -> C# server: a single self-contained exe, no Python needed.",
     "                      Build it with build/build-all.ps1, which publishes to",
@@ -10,9 +10,13 @@
     "autocad-mcp-python -> Python server: no build step, handy while developing.",
     "                      Needs 'pip install -r autocad-plugin/src/mcp_server/requirements.txt'.",
     "",
+    "autocad-agent      -> OPTIONAL. Generates AutoCAD code from a plain-language",
+    "                      request instead of many individual tool calls. Needs an",
+    "                      Anthropic API key (or `ant auth login`). Remove the",
+    "                      ALLOW_EXEC env var to keep it generate-only.",
+    "",
     "Either way AutoCAD must be running with the plugin loaded and MCPSTART issued."
   ],
-
   "mcpServers": {
     "autocad-mcp": {
       "command": "autocad-plugin/dist/server/autocad-mcp-server.exe",
@@ -21,13 +25,25 @@
         "AUTOCAD_MCP_PORT": "8081"
       }
     },
-
     "autocad-mcp-python": {
       "command": "python",
-      "args": ["autocad-plugin/src/mcp_server/server.py"],
+      "args": [
+        "autocad-plugin/src/mcp_server/server.py"
+      ],
       "env": {
         "AUTOCAD_MCP_HOST": "localhost",
         "AUTOCAD_MCP_PORT": "8081"
+      }
+    },
+    "autocad-agent": {
+      "command": "python",
+      "args": [
+        "autocad-plugin/src/mcpagent/agent_server.py"
+      ],
+      "env": {
+        "AUTOCAD_MCP_HOST": "localhost",
+        "AUTOCAD_MCP_PORT": "8081",
+        "AUTOCAD_AGENT_ALLOW_EXEC": "1"
       }
     }
   }

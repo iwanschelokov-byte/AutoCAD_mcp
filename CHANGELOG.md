@@ -189,9 +189,29 @@ Already covered by PR #4 and therefore not reimplemented: the `get_entity`
 detail fields for Arc/Polyline/Spline/Ellipse/MText/BlockReference, and the
 `plot_to_pdf` rewrite onto `-PLOT`.
 
-Not implemented, needing a product decision rather than a fix: `execute_python`
-(arbitrary in-process Python execution) and the `mcpagent` AutoCode Agent.
-See STATUS.md.
+### Added — code execution and the AutoCode Agent (issue #5, parts 3 and 4)
+
+Both were initially deferred as security-posture decisions rather than fixes;
+both now ship **gated off by default**.
+
+- **`execute_python`** — runs Python in the MCP server process with a pre-wired
+  `call(method, params)`, for multi-step geometry that would otherwise cost
+  dozens of round-trips. Requires `AUTOCAD_MCP_ALLOW_EXEC=1`. The code is not
+  sandboxed, but it reaches AutoCAD only through the plugin's JSON-RPC port, so
+  read-only mode and destructive confirmation still apply to what it draws.
+- **`mcpagent` AutoCode Agent** (`src/mcpagent/`) — a separate MCP server that
+  turns a plain-language drawing request into generated AutoCAD code.
+  `generate_drawing_code` returns a plan and the code without running it and
+  needs no permission; `draw` also executes and requires
+  `AUTOCAD_AGENT_ALLOW_EXEC=1`. Its tool catalogue is built from the same
+  generated `tools.json` the C# server embeds, so a new plugin tool reaches the
+  agent with no edit — and the issue's hardcoded-relative-path concern does not
+  apply. Host and port are environment-configurable.
+
+  **Not verified against the live Claude API** — built without credentials on
+  the development machine. The request shape is confirmed valid (the SDK accepts
+  every parameter and the API rejects a dummy-key request at authentication
+  rather than as malformed), but no real generation has been run.
 
 ### Known gaps
 

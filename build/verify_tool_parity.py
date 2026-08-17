@@ -25,8 +25,11 @@ COMMANDS_DIR = REPO / "autocad-plugin" / "src" / "AutoCADMCPPlugin" / "Commands"
 REGISTRY = REPO / "autocad-plugin" / "src" / "AutoCADMCPPlugin" / "Core" / "CommandRegistry.cs"
 SERVER = REPO / "autocad-plugin" / "src" / "mcp_server" / "server.py"
 
-# Tools implemented entirely in the Python layer, with no plugin counterpart.
-PYTHON_ONLY = {"create_table_from_excel"}
+# Tools implemented entirely in the Python layer, with no single plugin
+# counterpart. create_table_from_excel builds geometry client-side; execute_python
+# dispatches whatever the snippet asks for at runtime, so neither maps to one
+# fixed method name.
+PYTHON_ONLY = {"create_table_from_excel", "execute_python"}
 
 # Helpers in server.py that dispatch a method to the plugin. Both must be listed
 # or a tool routed through the unlisted one looks unreachable:
