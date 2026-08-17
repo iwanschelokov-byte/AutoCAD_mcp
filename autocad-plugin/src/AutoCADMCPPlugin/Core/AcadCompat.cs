@@ -21,14 +21,20 @@ namespace AutoCADMCPPlugin.Core
         {
             get
             {
+// The SDK defines NET8_0 / NET10_0 for net8.0-windows / net10.0-windows.
+                // There is no combined NET8_0_WINDOWS symbol - assuming there was
+                // made both branches dead code, and every non-net48 build silently
+                // reported "unknown" here. Check the newest first: NET8_0 is not
+                // defined for a net10 build, but keeping the order explicit means a
+                // future net12 leg cannot accidentally match an older branch.
 #if NET48
                 return "net48";
-#elif NET10_0_WINDOWS
+#elif NET10_0
                 return "net10.0-windows";
-#elif NET8_0_WINDOWS
+#elif NET8_0
                 return "net8.0-windows";
 #else
-                return "unknown";
+#error Unrecognised target framework - add it to AcadCompat rather than letting it report "unknown".
 #endif
             }
         }
@@ -40,12 +46,12 @@ namespace AutoCADMCPPlugin.Core
             {
 #if NET48
                 return "AutoCAD 2021-2024 (R24.0-R24.3)";
-#elif NET10_0_WINDOWS
+#elif NET10_0
                 return "AutoCAD 2027 (R26.0)";
-#elif NET8_0_WINDOWS
+#elif NET8_0
                 return "AutoCAD 2025-2026 (R25.0-R25.1)";
 #else
-                return "unknown";
+#error Unrecognised target framework - add it to AcadCompat rather than letting it report "unknown".
 #endif
             }
         }
