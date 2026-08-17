@@ -16,7 +16,7 @@ namespace AutoCADMCPPlugin.Core
     ///
     /// Two transports are exposed simultaneously:
     /// - TCP socket on <see cref="DefaultPort"/> (default 8081) for the
-    ///   Python MCP server / Claude integration (newline-delimited JSON-RPC).
+    ///   MCP server / Claude integration (newline-delimited JSON-RPC).
     /// - HTTP loopback on <see cref="DefaultHttpPort"/> (default 8082) for
     ///   browser apps (POST /jsonrpc, with CORS + Chrome Private-Network-Access).
     ///
@@ -33,8 +33,11 @@ namespace AutoCADMCPPlugin.Core
         public const int DefaultHttpPort = 8082;
         public const string PluginName = "AutoCAD MCP Plugin";
 
-        // Upstream feature version.
-        public const string Version = "1.3.0";
+        // Read from the assembly, which the csproj <Version> sets, so a release
+        // can never report a number it was not built as. It was a hand-maintained
+        // constant and had drifted to 1.3.0 while the project shipped 2.0.0.
+        public static readonly string Version =
+            typeof(Plugin).Assembly.GetName().Version?.ToString(3) ?? "unknown";
 
         // Custom build tag for this fork. Bump this when you rebuild your own
         // version so `system_status` and the load message identify it clearly.
