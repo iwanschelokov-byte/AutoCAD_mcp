@@ -51,13 +51,16 @@ jobs:
       - name: Verify registry, classification, JSON-RPC contract and tool surface
         shell: pwsh
         run: |
+          # Deliberately not wrapped in ::group:: - a collapsed group hides the
+          # failing check, which is the one line anyone reading this needs. Runs
+          # every leg before reporting, so one broken leg does not mask another.
+          $failed = @()
           foreach ($tfm in 'net48', 'net8.0-windows', 'net10.0-windows') {
-            Write-Host "::group::verify-assembly $tfm"
+            Write-Host "--- verify-assembly $tfm ---"
             pwsh -NoProfile -File ./build/verify-assembly.ps1 -TargetFramework $tfm -RequireServer
-            $code = $LASTEXITCODE
-            Write-Host '::endgroup::'
-            if ($code -ne 0) { throw "verify-assembly failed for $tfm" }
+            if ($LASTEXITCODE -ne 0) { $failed += $tfm }
           }
+          if ($failed) { throw "verify-assembly failed for: $($failed -join ', ')" }
 
       - name: Upload build output
         uses: actions/upload-artifact@v4

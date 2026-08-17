@@ -53,13 +53,13 @@ jobs:
       - name: Verify the built assembly and tool surface
         shell: pwsh
         run: |
+          $failed = @()
           foreach ($tfm in 'net48', 'net8.0-windows', 'net10.0-windows') {
-            Write-Host "::group::verify-assembly $tfm"
+            Write-Host "--- verify-assembly $tfm ---"
             pwsh -NoProfile -File ./build/verify-assembly.ps1 -TargetFramework $tfm -RequireServer
-            $code = $LASTEXITCODE
-            Write-Host '::endgroup::'
-            if ($code -ne 0) { throw "verify-assembly failed for $tfm" }
+            if ($LASTEXITCODE -ne 0) { $failed += $tfm }
           }
+          if ($failed) { throw "verify-assembly failed for: $($failed -join ', ')" }
 
       - name: Server-tool and code-runner tests
         run: dotnet run -c Release --project tests/ServerToolTests --nologo
