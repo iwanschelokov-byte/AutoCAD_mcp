@@ -10,11 +10,11 @@ using static AutoCADMCPPlugin.Commands.EntityHelper;
 
 namespace AutoCADMCPPlugin.Commands
 {
-    public class SetEntityPropertiesCommand : ICommand
+    public class SetEntityPropertiesCommand : AcadCommand
     {
-        public string MethodName => "set_entity_properties";
+        public override string MethodName => "set_entity_properties";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -67,11 +67,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class OffsetEntityCommand : ICommand
+    public class OffsetEntityCommand : AcadCommand
     {
-        public string MethodName => "offset_entity";
+        public override string MethodName => "offset_entity";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -135,11 +135,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class ExplodeEntityCommand : ICommand
+    public class ExplodeEntityCommand : AcadCommand
     {
-        public string MethodName => "explode_entity";
+        public override string MethodName => "explode_entity";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -188,11 +188,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class ArrayRectangularCommand : ICommand
+    public class ArrayRectangularCommand : AcadCommand
     {
-        public string MethodName => "array_rectangular";
+        public override string MethodName => "array_rectangular";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -249,11 +249,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class ArrayPolarCommand : ICommand
+    public class ArrayPolarCommand : AcadCommand
     {
-        public string MethodName => "array_polar";
+        public override string MethodName => "array_polar";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -316,11 +316,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class JoinEntitiesCommand : ICommand
+    public class JoinEntitiesCommand : AcadCommand
     {
-        public string MethodName => "join_entities";
+        public override string MethodName => "join_entities";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -374,11 +374,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class BulkEraseCommand : ICommand
+    public class BulkEraseCommand : AcadCommand
     {
-        public string MethodName => "bulk_erase";
+        public override string MethodName => "bulk_erase";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -440,11 +440,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class UndoCommand : ICommand
+    public class UndoCommand : AcadCommand
     {
-        public string MethodName => "undo_last";
+        public override string MethodName => "undo_last";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");

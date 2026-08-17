@@ -6,43 +6,46 @@
   AutoCADMCPPlugin.bundle folder to:
     %APPDATA%\Autodesk\ApplicationPlugins\
 
-  Supports AutoCAD 2022-2027.
+  Supports AutoCAD 2021-2027. AutoCAD picks the ComponentEntry whose
+  SeriesMin/SeriesMax range matches the running release:
+    R24.0=2021  R24.1=2022  R24.2=2023  R24.3=2024
+    R25.0=2025  R25.1=2026  R26.0=2027
 -->
 <ApplicationPackage
   SchemaVersion="1.0"
   AutodeskProduct="AutoCAD"
   Name="AutoCAD MCP Plugin"
   Description="AI-to-AutoCAD communication via MCP protocol over TCP socket"
-  AppVersion="1.0.0"
+  AppVersion="2.0.0"
   ProductCode="{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
   UpgradeCode="{A1B2C3D4-E5F6-7890-ABCD-EF1234567891}">
 
   <CompanyDetails Name="AutoCAD MCP" />
 
-  <!-- Support AutoCAD 2022 (R24.1) through 2027 (R26.0) -->
+  <!-- Support AutoCAD 2021 (R24.0) through 2027 (R26.0) -->
   <RuntimeRequirements
     OS="Win64"
     Platform="AutoCAD"
-    SeriesMin="R24.1"
+    SeriesMin="R24.0"
     SeriesMax="R26.0" />
 
   <Components>
 
-    <!-- AutoCAD 2022-2024 (.NET Framework 4.8) -->
+    <!-- AutoCAD 2021-2024 (.NET Framework 4.8) -->
     <ComponentEntry
       AppName="AutoCADMCPPlugin_net48"
-      Version="1.0.0"
+      Version="2.0.0"
       ModuleName="./Contents/net48/AutoCADMCPPlugin.dll"
       AppDescription="AutoCAD MCP Plugin (.NET Framework 4.8)"
       LoadOnAutoCADStartup="True"
       LoadOnCommandInvocation="False">
-      <RuntimeRequirements SeriesMin="R24.1" SeriesMax="R24.3" />
+      <RuntimeRequirements SeriesMin="R24.0" SeriesMax="R24.3" />
     </ComponentEntry>
 
     <!-- AutoCAD 2025-2026 (.NET 8) -->
     <ComponentEntry
       AppName="AutoCADMCPPlugin_net8"
-      Version="1.0.0"
+      Version="2.0.0"
       ModuleName="./Contents/net8.0-windows/AutoCADMCPPlugin.dll"
       AppDescription="AutoCAD MCP Plugin (.NET 8)"
       LoadOnAutoCADStartup="True"
@@ -50,10 +53,10 @@
       <RuntimeRequirements SeriesMin="R25.0" SeriesMax="R25.1" />
     </ComponentEntry>
 
-    <!-- AutoCAD 2027 (.NET 10) -->
+    <!-- AutoCAD 2027 (.NET 10) — present only when built with -p:IncludeNet10=true -->
     <ComponentEntry
       AppName="AutoCADMCPPlugin_net10"
-      Version="1.0.0"
+      Version="2.0.0"
       ModuleName="./Contents/net10.0-windows/AutoCADMCPPlugin.dll"
       AppDescription="AutoCAD MCP Plugin (.NET 10)"
       LoadOnAutoCADStartup="True"

@@ -1,0 +1,84 @@
+name: build
+
+# Validates every push and PR. No AutoCAD installation is needed: the plugin
+# compiles against the AutoCAD.NET reference assemblies from NuGet, and every
+# check here runs without a live session.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  plugin:
+    name: Plugin (net48 + net8.0 + net10.0)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Restore
+        run: dotnet restore autocad-plugin/src/AutoCADMCPPlugin/AutoCADMCPPlugin.csproj -p:IncludeNet10=true
+
+      - name: Build all three targets
+        run: >
+          dotnet build autocad-plugin/src/AutoCADMCPPlugin/AutoCADMCPPlugin.csproj
+          -c Release --no-restore -p:IncludeNet10=true
+          -warnaserror
+
+      # verify-assembly cross-checks tools.json against the registry, and asks
+      # the server which tools it serves itself, so the server must exist first.
+      - name: Build the MCP server
+        run: >
+          dotnet build autocad-plugin/src/AutoCADMCP.Server/AutoCADMCP.Server.csproj
+          -c Release --nologo
+
+      - name: Verify registry, classification, JSON-RPC contract and tool surface
+        shell: pwsh
+        run: ./build/verify-assembly.ps1 -RequireServer
+
+      - name: Upload build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-dlls
+          path: |
+            autocad-plugin/src/AutoCADMCPPlugin/bin/Release/net48/AutoCADMCPPlugin.dll
+            autocad-plugin/src/AutoCADMCPPlugin/bin/Release/net8.0-windows/AutoCADMCPPlugin.dll
+            autocad-plugin/src/AutoCADMCPPlugin/bin/Release/net10.0-windows/AutoCADMCPPlugin.dll
+          if-no-files-found: error
+
+  mcp-server:
+    name: MCP server + agent
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish self-contained server
+        run: >
+          dotnet publish autocad-plugin/src/AutoCADMCP.Server/AutoCADMCP.Server.csproj
+          -c Release -o dist/server --nologo
+
+      - name: Drive the MCP protocol over stdio
+        shell: pwsh
+        run: ./build/verify-mcp-server.ps1 -ServerExe dist/server/autocad-mcp-server.exe
+
+      # Covers the server-side tools (spreadsheet reading, PDF cropping) and the
+      # agent's code runner. Fixtures are generated, so nothing is checked in.
+      - name: Server-tool and code-runner tests
+        run: dotnet run -c Release --project tests/ServerToolTests --nologo
+
+      # Not run here - it needs a live AutoCAD - but it must still compile.
+      - name: Build the runtime verification harness
+        run: dotnet build -c Release --nologo tests/RuntimeVerify

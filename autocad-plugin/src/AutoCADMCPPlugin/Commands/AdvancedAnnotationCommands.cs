@@ -9,11 +9,11 @@ using static AutoCADMCPPlugin.Commands.EntityHelper;
 
 namespace AutoCADMCPPlugin.Commands
 {
-    public class CreateAngularDimensionCommand : ICommand
+    public class CreateAngularDimensionCommand : AcadCommand
     {
-        public string MethodName => "create_angular_dimension";
+        public override string MethodName => "create_angular_dimension";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -55,11 +55,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class CreateRadialDimensionCommand : ICommand
+    public class CreateRadialDimensionCommand : AcadCommand
     {
-        public string MethodName => "create_radial_dimension";
+        public override string MethodName => "create_radial_dimension";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -100,11 +100,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class CreateDiameterDimensionCommand : ICommand
+    public class CreateDiameterDimensionCommand : AcadCommand
     {
-        public string MethodName => "create_diameter_dimension";
+        public override string MethodName => "create_diameter_dimension";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -148,11 +148,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class CreateLeaderCommand : ICommand
+    public class CreateLeaderCommand : AcadCommand
     {
-        public string MethodName => "create_leader";
+        public override string MethodName => "create_leader";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -213,11 +213,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class CreateSplineCommand : ICommand
+    public class CreateSplineCommand : AcadCommand
     {
-        public string MethodName => "create_spline";
+        public override string MethodName => "create_spline";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -246,11 +246,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class CreateTableCommand : ICommand
+    public class CreateTableCommand : AcadCommand
     {
-        public string MethodName => "create_table";
+        public override string MethodName => "create_table";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -319,7 +319,11 @@ namespace AutoCADMCPPlugin.Commands
 
                 var result = EntityToJson(id);
                 result["type"] = "Table";
-                result["rows"] = totalRows;
+                // "rows" is what the caller asked for (data rows); "total_rows"
+                // includes the title row when one was added.
+                result["rows"] = rows;
+                result["total_rows"] = totalRows;
+                if (!string.IsNullOrEmpty(title)) result["title"] = title;
                 result["columns"] = columns;
                 return CommandResult.Ok(result);
             }

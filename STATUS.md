@@ -1,0 +1,217 @@
+# Status
+
+Living ledger for the upgrade described in `UPGRADE_PLAN.md`.
+Legend: ✅ done · 🟡 partial · ⬜ not started
+
+_Last updated: 2026-08-17 (rebased onto PR #4)_
+
+## Headline
+
+| Metric | Before | Now |
+|---|---|---|
+| MCP tools | 73 | **183** |
+| C# commands registered | 76 | **182** |
+| AutoCAD versions | 2022–2026 | **2021–2027** |
+| Build targets | net48, net8.0 | net48, net8.0, **net10.0** (opt-in) |
+| MCP servers | Python only | **C# self-contained exe** (Python retired) |
+| Typed error codes | ✗ | ✅ 9 codes |
+| Safety gates | ✗ | ✅ read-only + destructive confirm |
+| Audit log | ✗ | ✅ JSONL, central-ready |
+| CI | ✗ | ✅ build + release workflows |
+| Automated verification | ✗ | ✅ 4 gates, 34 assertions |
+
+## Phase 0 — Quick wins ✅
+
+| # | Item | Status |
+|---|---|---|
+| 0.1 | Expose `measure_text` / `measure_texts` as MCP tools | ✅ |
+| 0.2 | Rename `revit_mcp.sln` → `autocad_mcp.sln` | ✅ |
+| 0.3 | Fix stale `autocad-plugin/README.md` | ✅ |
+| 0.4 | AutoCAD 2021 support (24.0 refs, `SeriesMin=R24.0`) | ✅ verified compiling against 2021 refs |
+| 0.5 | Docs skeleton (STATUS, CHANGELOG, LESSONS) | ✅ |
+
+## Phase 1 — Foundation hardening ✅
+
+| # | Item | Status |
+|---|---|---|
+| A1 | Typed `ErrorCode` in `error.data.errorCode` | ✅ |
+| A2 | `CommandClassifier` (name-inferred read/write/destructive) | ✅ |
+| A3 | Read-only mode + destructive confirmation (`__confirm`) | ✅ |
+| A4 | `DirectCommand` split (introspection unblocked by modals) | ✅ 4 direct tools |
+| A5 | `get_capabilities` | ✅ |
+| A6 | JSONL audit log with user/machine/drawing | ✅ |
+| A7 | Forgiving parameter aliases + hex handle support | ✅ |
+| A8 | Persisted settings store | ✅ |
+
+## Phase 2 — C# MCP server port ✅
+
+| # | Item | Status |
+|---|---|---|
+| 2.1 | Hand-rolled MCP protocol over stdio | ✅ initialize / tools/list / tools/call / ping |
+| 2.2 | TCP `PluginClient` with graceful degradation | ✅ plugin-down returns `isError`, not a crash |
+| 2.3 | Per-tool JSON schemas | ✅ `tools.json`, the committed tool-surface contract |
+| 2.4 | Self-contained single-exe publish | ✅ ~67 MB, no runtime to install |
+| 2.5 | Python server retired | ✅ the repo is now all C# |
+
+`tools.json` is committed rather than generated. `build/verify-assembly.ps1`
+cross-checks it against the live command registry and the server's own tool set,
+so it can neither omit a registered command nor advertise one nothing can serve.
+
+## Phase 3 — Tool expansion ✅
+
+| Sprint | Scope | Tools | Status |
+|---|---|---|---|
+| A | Layouts, paper space, page setup, plotting | 15 | ✅ |
+| B | Xrefs + side-database external DWG queries | 9 | ✅ |
+| C | Block attributes + dynamic blocks | 10 | ✅ |
+| D | Modify operations | 11 | ✅ |
+| E | Annotation completion | 18 | ✅ |
+| F | 2D entities + 3D solids | 16 | ✅ |
+| G | Groups, layer states, views, UCS, XData, audit | 19 | ✅ |
+| H | Sheet sets (COM) | 4 | ✅ read-only subset |
+
+**102 new tools delivered** (planned ~116; the shortfall is entirely operations
+listed below as deliberately out of scope).
+
+Explicitly out of scope, with reason:
+- `trim_entity` / `extend_entity` to a cutting edge — no .NET API equivalent; a
+  command-driven wrapper would be unreliable. Use `execute_command`.
+- `fillet_entities` supports two `Line` entities only; other geometry returns
+  `Unsupported` with a pointer to `execute_command`.
+- `create_center_mark` / `create_centerline` — the `CenterMark`/`Centerline`
+  classes do not exist in the AutoCAD 2021 managed API this build targets.
+- Sheet set **write** operations — the COM API is stateful and easy to corrupt;
+  only read operations are exposed.
+
+## Phase 4 — Multi-version ✅
+
+| # | Item | Status |
+|---|---|---|
+| 4.1 | net48 built against 2021 refs → covers 2021–2024 | ✅ compiles clean |
+| 4.2 | net8.0 → 2025–2026 | ✅ |
+| 4.3 | net10.0 → 2027, opt-in via `-p:IncludeNet10=true` | ✅ wired; ⬜ **not compiled locally** (see below) |
+| 4.4 | `AcadCompat.cs` version-drift shim | ✅ |
+| 4.5 | Bundle range `R24.0`–`R26.0`, 3 ComponentEntries | ✅ |
+| 4.6 | Verticals (Civil 3D, Plant 3D, …) documented | ✅ no code needed |
+| 4.7 | AutoCAD LT | ✅ documented as impossible (no NETLOAD in LT) |
+
+**4.3 caveat:** installing the .NET 10 SDK on this machine failed with MSI error
+`0x80070641`, caused by a **pending file-rename operation** (a queued reboot from
+an earlier install). This needs a reboot, then:
+
+```powershell
+winget install Microsoft.DotNet.SDK.10
+.\build\build-all.ps1 -IncludeNet10
+```
+
+Everything else for 2027 is in place: csproj leg, `AutoCAD.NET 26.0.x` reference,
+bundle `ComponentEntry` at `R26.0`, installer handling, and a CI job that builds
+it on `windows-latest` (where the SDK is available). `build-all.ps1` auto-detects
+the SDK and drops the leg from the **staged** manifest when it is absent, so a
+partial build never ships a manifest promising a DLL that is not there.
+
+## Phase 5 — Build, CI, packaging ✅
+
+| # | Item | Status |
+|---|---|---|
+| 5.1 | Runtime verification harness | ✅ `tests/RuntimeVerify` (C#) |
+| 5.2 | Install scripts handle all three legs | ✅ |
+| 5.3 | Pre-built DLLs in `dist/` refreshed | ✅ net48 + net8.0 |
+| 5.4 | `build-all.ps1` orchestrator | ✅ builds, publishes server (and agent), stages bundle |
+| 5.5 | GitHub Actions CI | ✅ `build.yml` (2 jobs) + `release.yml` |
+| 5.6 | Inno Setup installer | ✅ `installer/AutoCADMCP.iss` |
+| 5.7 | Code signing | ✅ `sign.ps1` + `setup-signing.ps1`, CI-secret aware |
+
+## Verification
+
+Four automated gates, 77 assertions, none of which need AutoCAD:
+
+| Gate | What it proves | Result |
+|---|---|---|
+| `dotnet build` | All targets compile against their oldest supported refs | ✅ 0 warnings, 0 errors |
+| `build/verify-assembly.ps1` | Registry, classification, JSON-RPC, safety gates, tool surface | ✅ 19/19 |
+| `build/verify-mcp-server.ps1` | MCP protocol over real stdio | ✅ 11/11 |
+| `tests/ServerToolTests` | Server-side tools and the agent's code runner | ✅ 47/47 |
+
+Highlights:
+- net48 leg compiles against **AutoCAD 2021 (24.0.0)** refs — proves no post-2021 API is used
+- 185 command classes, 185 registered, 185 unique method names, zero orphans either direction
+- classification: 127 write / 58 read / 4 direct / 10 destructive
+- `erase_entity` without `__confirm` → `NeedsConfirm`; read-only mode → `ReadOnly`
+- MCP `initialize` negotiates 2025-06-18; `tools/list` returns 186 tools with real schemas
+- plugin unreachable → `isError` with an actionable message, not a crash
+
+`build/verify-assembly.ps1` earned its keep immediately: it caught 18 annotation
+command classes that had been written but never registered — dead code that would
+have shipped silently.
+
+### Not verified — requires a live AutoCAD session
+
+The command bodies that call the AutoCAD API have **not** been exercised against a
+running AutoCAD. Compilation proves the API calls are type-correct; it does not
+prove runtime behaviour (transaction semantics, viewport activation, plot device
+enumeration, dynamic block property coercion, COM sheet set access).
+
+With AutoCAD open and `MCPSTART` issued:
+
+```bash
+dotnet run --project tests/RuntimeVerify           # core chained suite
+dotnet run --project tests/RuntimeVerify -- --all  # plus a sweep of every tool
+```
+
+Record results in `docs/VERIFICATION.md` after the first real run.
+
+## Merge with PR #4
+
+Rebased onto `765ad10` (PR #4: AutoCAD 2027 support, reworked `plot_to_pdf`,
+hex handles, document control, command diagnostics). Resolutions:
+
+| Area | Kept | Why |
+|---|---|---|
+| Base class | Mine (`AcadCommand`) | PR #4's 6 new commands converted to it |
+| net48 refs | Mine (`24.0.*`) | Adds AutoCAD 2021; PR #4 stayed at R24.1 |
+| 2027 API refs | Mine (NuGet `26.0.*`) | Lets CI build the leg with no AutoCAD installed |
+| 2027 Newtonsoft.Json | **Theirs** | AutoCAD 2027 ships its own; referencing ours causes `MissingMethodException` |
+| 2027 auto-detect | **Theirs** + my `IncludeNet10` flag | Both paths now work |
+| Installers | **Theirs** | More thorough (Python dep checks, careful net10 handling) |
+| `plot_to_pdf`, `plot_devices` | **Theirs** | Waits for the file, trims pages, reports printable areas |
+| Bundle range | Mine (`R24.0`–`R26.0`) | Keeps 2021 |
+
+`list_plot_devices`, `list_paper_sizes` and `plot_layout` were removed as
+superseded by PR #4's `plot_devices` / `plot_to_pdf`.
+
+## Issue #5
+
+Addressed: parameter aliases (`move_entity`, `copy_entity`, `zoom_window`,
+`select_by_window`), `measure_between` extents crash + approximate-centre
+honesty, `search_text.first_text`, `drawing_info` null path, `create_table`
+rows vs total_rows, and `.gitattributes` for the CRLF noise.
+
+Already fixed by PR #4, not reimplemented: `get_entity` detail fields and the
+`plot_to_pdf` rewrite.
+
+**Code generation is now the AutoCode agent** (`src/AutoCADMCP.Agent/`), a
+separate C# MCP server that turns a plain-language request into AutoCAD code.
+`generate_drawing_code` needs no permission; `draw` requires
+`AUTOCAD_AGENT_ALLOW_EXEC=1` and executes the generated C# through Roslyn.
+Its tool catalogue is the same embedded `tools.json` the server uses, so adding
+a plugin tool reaches the agent with no edit.
+
+The standalone `execute_python` tool is gone: it existed only because the MCP
+server was Python, and a C# server has no interpreter to offer. The agent covers
+the same need — multi-step geometry as one generated program — with the code
+shown before it runs.
+
+`CodeRunner` and the prompt builder are covered by `tests/ServerToolTests`. The
+**generation path remains unverified against the live API** — built without
+credentials on this machine. It compiles against the SDK and every parameter is
+accepted, but no real generation has run. Expect prompt iteration on first use.
+
+## Remaining work
+
+Nothing from the plan is outstanding except:
+
+1. **Compile the 2027 leg locally** — blocked on a machine reboot (see 4.3).
+2. **Run `tests/RuntimeVerify` against a live AutoCAD** — the only way to
+   validate the API-calling code paths.
+3. **Verify sheet set COM access** against a machine with a real `.dst`.

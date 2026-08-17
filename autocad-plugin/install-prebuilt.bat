@@ -138,62 +138,21 @@ if exist "%BUNDLE_DST%\PackageContents.xml" (
 
 echo.
 
-:: Step 4: Python packages for the MCP server
-echo [4/4] Checking the Python packages the MCP server needs...
-set "REQ=%SCRIPT_DIR%src\mcp_server\requirements.txt"
-set "PY="
-if not exist "%REQ%" (
-    echo       requirements.txt was not found at:
-    echo         %REQ%
-    echo       Nothing to check. It lives in the repository under
-    echo       autocad-plugin\src\mcp_server if you installed from a zip.
-    goto :pydone
-)
-python -c "import sys" >nul 2>&1 && set "PY=python"
-if not defined PY (
-    py -3 -c "import sys" >nul 2>&1 && set "PY=py -3"
-)
-if not defined PY (
-    echo       No Python on PATH, so the packages could not be checked. The
-    echo       plugin itself is installed and works - it is the Python MCP
-    echo       server that needs them. Install Python 3.10 or newer, then:
-    echo           pip install -r "%REQ%"
-    goto :pydone
-)
-set "MISSING="
-%PY% -c "import mcp" >nul 2>&1 || set "MISSING=%MISSING% mcp"
-%PY% -c "import openpyxl" >nul 2>&1 || set "MISSING=%MISSING% openpyxl"
-%PY% -c "import pikepdf" >nul 2>&1 || set "MISSING=%MISSING% pikepdf"
-if not defined MISSING (
-    echo       mcp, openpyxl, pikepdf - all present.
-    goto :pydone
-)
-echo       Missing:%MISSING%
-echo.
-echo       mcp is required - without it the MCP server does not start at all.
-echo       openpyxl backs create_table_from_excel, and pikepdf crops a plotted
-echo       PDF down to the window that was plotted. Without those two, the
-echo       server still runs and reports the affected feature as unavailable.
-echo.
-set "ANS="
-set /p ANS="      Install them now with pip? [y/N] "
-if /i not "%ANS%"=="y" (
-    echo       Skipped. To do it later:
-    echo           pip install -r "%REQ%"
-    goto :pydone
+:: Step 4: MCP server
+echo [4/4] MCP server...
+set "SERVEREXE=%SCRIPT_DIR%dist\server\autocad-mcp-server.exe"
+if exist "%SERVEREXE%" (
+    echo       Found: dist\server\autocad-mcp-server.exe
+    echo       It is self-contained - there is nothing else to install.
+    echo       Point your MCP client at that path, then run MCPSTART in AutoCAD.
+) else (
+    echo       Not shipped in this folder. The plugin is installed and works
+    echo       either way; the MCP server is what your AI client talks to.
+    echo       Build it from the repository with:
+    echo           build\build-all.ps1
 )
 echo.
-%PY% -m pip install -r "%REQ%"
-if %ERRORLEVEL% NEQ 0 (
-    echo.
-    echo       pip failed. The plugin is installed either way; run this by hand:
-    echo           pip install -r "%REQ%"
-    goto :pydone
-)
-echo.
-echo       Done.
-:pydone
-echo.
+
 
 echo ============================================
 echo  Installation successful!

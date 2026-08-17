@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!--
+      AutoCode Agent - an MCP server that turns a drawing request into AutoCAD
+      code, and optionally runs it.
+
+      Kept as a separate executable from AutoCADMCP.Server on purpose: it pulls
+      in the Anthropic SDK and the Roslyn scripting engine, and most users want
+      the plain tool bridge without either. Nothing here is ever loaded into
+      acad.exe - it talks to the plugin over the same TCP port as the server.
+    -->
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>autocad-mcp-agent</AssemblyName>
+    <RootNamespace>AutoCADMCP.Agent</RootNamespace>
+    <Version>2.0.0</Version>
+
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <!-- Roslyn ships satellite resource assemblies that single-file packing
+         cannot fold in, so this publishes as a folder rather than one .exe. -->
+    <PublishSingleFile>false</PublishSingleFile>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Anthropic" Version="12.*" />
+    <!-- Executes the C# the model writes. Same role Python's exec() played in
+         the previous implementation, and gated behind the same opt-in. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- PluginClient and the tools.json catalogue both live in the server. -->
+    <ProjectReference Include="..\AutoCADMCP.Server\AutoCADMCP.Server.csproj" />
+  </ItemGroup>
+
+</Project>

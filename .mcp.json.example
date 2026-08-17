@@ -1,11 +1,32 @@
 {
+  "_comment": [
+    "Copy this to .mcp.json.",
+    "",
+    "autocad-mcp   -> the tool bridge: 183 tools, one self-contained exe.",
+    "                 Build it with build/build-all.ps1, which publishes to",
+    "                 autocad-plugin/dist/server/autocad-mcp-server.exe.",
+    "",
+    "autocad-agent -> OPTIONAL. Generates AutoCAD code from a plain-language",
+    "                 request instead of many individual tool calls. Needs an",
+    "                 Anthropic API key (or `ant auth login`). Remove the",
+    "                 ALLOW_EXEC env var to keep it generate-only.",
+    "",
+    "AutoCAD must be running with the plugin loaded and MCPSTART issued."
+  ],
   "mcpServers": {
     "autocad-mcp": {
-      "command": "python",
-      "args": ["autocad-plugin/src/mcp_server/server.py"],
+      "command": "autocad-plugin/dist/server/autocad-mcp-server.exe",
       "env": {
         "AUTOCAD_MCP_HOST": "localhost",
         "AUTOCAD_MCP_PORT": "8081"
+      }
+    },
+    "autocad-agent": {
+      "command": "autocad-plugin/dist/agent/autocad-mcp-agent.exe",
+      "env": {
+        "AUTOCAD_MCP_HOST": "localhost",
+        "AUTOCAD_MCP_PORT": "8081",
+        "AUTOCAD_AGENT_ALLOW_EXEC": "1"
       }
     }
   }

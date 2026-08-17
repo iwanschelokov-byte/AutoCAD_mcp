@@ -9,11 +9,11 @@ using Application = Autodesk.AutoCAD.ApplicationServices.Application;
 
 namespace AutoCADMCPPlugin.Commands
 {
-    public class ZoomExtentsCommand : ICommand
+    public class ZoomExtentsCommand : AcadCommand
     {
-        public string MethodName => "zoom_extents";
+        public override string MethodName => "zoom_extents";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -25,17 +25,20 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class ZoomWindowCommand : ICommand
+    public class ZoomWindowCommand : AcadCommand
     {
-        public string MethodName => "zoom_window";
+        public override string MethodName => "zoom_window";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
 
-            Point3d min = EntityHelper.ParsePoint(parameters["min"], "min");
-            Point3d max = EntityHelper.ParsePoint(parameters["max"], "max");
+            // Accept both "min"/"max" and "min_point"/"max_point".
+            Point3d min = EntityHelper.ParsePoint(
+                EntityHelper.Arg(parameters, "min", "min_point"), "min");
+            Point3d max = EntityHelper.ParsePoint(
+                EntityHelper.Arg(parameters, "max", "max_point"), "max");
 
             Editor ed = doc.Editor;
 

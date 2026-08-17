@@ -9,11 +9,11 @@ using static AutoCADMCPPlugin.Commands.EntityHelper;
 
 namespace AutoCADMCPPlugin.Commands
 {
-    public class CreateLinearDimensionCommand : ICommand
+    public class CreateLinearDimensionCommand : AcadCommand
     {
-        public string MethodName => "create_linear_dimension";
+        public override string MethodName => "create_linear_dimension";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -66,11 +66,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class CreateAlignedDimensionCommand : ICommand
+    public class CreateAlignedDimensionCommand : AcadCommand
     {
-        public string MethodName => "create_aligned_dimension";
+        public override string MethodName => "create_aligned_dimension";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");

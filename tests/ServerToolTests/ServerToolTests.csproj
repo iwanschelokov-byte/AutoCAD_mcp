@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!--
+      Exercises the server-side tools that do work the plugin deliberately
+      avoids: reading a spreadsheet and cropping a plotted PDF. Neither needs
+      AutoCAD, so this runs anywhere - including CI.
+
+      Run it with:  dotnet run (from this directory), or from the repo root with
+      the project switch pointing at tests/ServerToolTests.
+    -->
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>server-tool-tests</AssemblyName>
+    <RootNamespace>AutoCADMCP.Server.Tests</RootNamespace>
+
+    <!-- The server project is self-contained, and .NET refuses to let a
+         framework-dependent executable reference one, so match it here. Single-file
+         packing stays off - it is a publish concern and this only ever runs. -->
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishSingleFile>false</PublishSingleFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\autocad-plugin\src\AutoCADMCP.Server\AutoCADMCP.Server.csproj" />
+    <!-- The agent's code runner and prompt builder are covered here too; both
+         run without AutoCAD and without Anthropic credentials. -->
+    <ProjectReference Include="..\..\autocad-plugin\src\AutoCADMCP.Agent\AutoCADMCP.Agent.csproj" />
+  </ItemGroup>
+
+</Project>

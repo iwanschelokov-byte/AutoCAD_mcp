@@ -57,6 +57,9 @@ namespace AutoCADMCPPlugin.Core
             // === System ===
             Register(new SystemStatusCommand());
             Register(new ListMethodsCommand());
+            Register(new GetCapabilitiesCommand());
+            Register(new GetServerOptionsCommand());
+            Register(new SetServerOptionsCommand());
             Register(new SetSystemVariableCommand());
             Register(new GetSystemVariableCommand());
             Register(new ExecuteCommandCommand());
@@ -165,6 +168,137 @@ namespace AutoCADMCPPlugin.Core
 
             // === Screenshot ===
             Register(new CaptureScreenshotCommand());
+
+            // ================================================================
+            // v2.0 — Layouts, paper space, page setup, plotting
+            // ================================================================
+            Register(new ListLayoutsCommand());
+            Register(new CreateLayoutCommand());
+            Register(new DeleteLayoutCommand());
+            Register(new RenameLayoutCommand());
+            Register(new SetCurrentLayoutCommand());
+            Register(new CopyLayoutCommand());
+            Register(new GetPageSetupCommand());
+            Register(new SetPageSetupCommand());
+            Register(new ListViewportsCommand());
+            Register(new CreateViewportCommand());
+            Register(new SetViewportScaleCommand());
+            Register(new LockViewportCommand());
+
+            // ================================================================
+            // v2.0 — Xrefs and external drawing data
+            // ================================================================
+            Register(new AttachXrefCommand());
+            Register(new ListXrefsCommand());
+            Register(new ReloadXrefCommand());
+            Register(new UnloadXrefCommand());
+            Register(new DetachXrefCommand());
+            Register(new BindXrefCommand());
+            Register(new SetXrefPathCommand());
+            Register(new ReadExternalDwgCommand());
+            Register(new BatchQueryDwgsCommand());
+
+            // ================================================================
+            // v2.0 — Block attributes and dynamic blocks
+            // ================================================================
+            Register(new ListBlockAttributesCommand());
+            Register(new GetAttributeValuesCommand());
+            Register(new SetAttributeValuesCommand());
+            Register(new SyncAttributesCommand());
+            Register(new GetDynamicBlockPropertiesCommand());
+            Register(new SetDynamicBlockPropertyCommand());
+            Register(new RenameBlockCommand());
+            Register(new DeleteBlockDefinitionCommand());
+            Register(new CountBlockReferencesCommand());
+            Register(new ExportBlockToFileCommand());
+
+            // ================================================================
+            // v2.0 — Modify operations
+            // ================================================================
+            Register(new BreakEntityCommand());
+            Register(new ReversePolylineCommand());
+            Register(new PolylineEditCommand());
+            Register(new SetDrawOrderCommand());
+            Register(new FlattenEntitiesCommand());
+            Register(new DivideEntityCommand());
+            Register(new MeasureEntityCommand());
+            Register(new CreateRegionCommand());
+            Register(new CreateBoundaryCommand());
+            Register(new FilletEntitiesCommand());
+            Register(new OverkillCommand());
+
+            // ================================================================
+            // v2.0 — Additional 2D entities and 3D solids
+            // ================================================================
+            Register(new CreatePointCommand());
+            Register(new CreateXlineCommand());
+            Register(new CreateRayCommand());
+            Register(new CreatePolygonCommand());
+            Register(new CreateDonutCommand());
+            Register(new Create3dPolylineCommand());
+            Register(new CreateBoxCommand());
+            Register(new CreateSphereCommand());
+            Register(new CreateCylinderCommand());
+            Register(new CreateConeCommand());
+            Register(new CreateWedgeCommand());
+            Register(new CreateTorusCommand());
+            Register(new ExtrudeProfileCommand());
+            Register(new RevolveProfileCommand());
+            Register(new BooleanSolidsCommand());
+            Register(new GetSolidPropertiesCommand());
+
+            // ================================================================
+            // v2.0 — Groups, layer states, views, UCS, data, audit
+            // ================================================================
+            Register(new CreateGroupCommand());
+            Register(new ListGroupsCommand());
+            Register(new AddToGroupCommand());
+            Register(new UngroupCommand());
+            Register(new SaveLayerStateCommand());
+            Register(new RestoreLayerStateCommand());
+            Register(new ListLayerStatesCommand());
+            Register(new DeleteLayerStateCommand());
+            Register(new CreateNamedViewCommand());
+            Register(new ListNamedViewsCommand());
+            Register(new RestoreViewCommand());
+            Register(new ListUcsCommand());
+            Register(new SetUcsCommand());
+            Register(new GetXDataCommand());
+            Register(new SetXDataCommand());
+            Register(new GetDrawingPropertiesCommand());
+            Register(new SetDrawingPropertiesCommand());
+            Register(new EntityCountReportCommand());
+            Register(new AuditDrawingCommand());
+
+            // ================================================================
+            // v2.0 — Annotation completion
+            // ================================================================
+            Register(new CreateMultileaderCommand());
+            Register(new ListMleaderStylesCommand());
+            Register(new CreateMleaderStyleCommand());
+            Register(new CreateOrdinateDimensionCommand());
+            Register(new CreateArcLengthDimensionCommand());
+            Register(new CreateToleranceCommand());
+            Register(new EditDimensionTextCommand());
+            Register(new UpdateDimensionsCommand());
+            Register(new ListAnnotationScalesCommand());
+            Register(new SetAnnotationScaleCommand());
+            Register(new AddAnnotationScaleToEntityCommand());
+            Register(new GetTableDataCommand());
+            Register(new SetTableCellCommand());
+            Register(new MergeTableCellsCommand());
+            Register(new ListTableStylesCommand());
+            Register(new EditMtextCommand());
+            Register(new CreateWipeoutCommand());
+            Register(new CreateRevisionCloudCommand());
+
+            // ================================================================
+            // v2.0 — Sheet sets (COM; read-only, degrades gracefully)
+            // ================================================================
+            Register(new SheetSetStatusCommand());
+            Register(new OpenSheetSetCommand());
+            Register(new ListSheetsCommand());
+            Register(new CloseSheetSetCommand());
         }
     }
 }

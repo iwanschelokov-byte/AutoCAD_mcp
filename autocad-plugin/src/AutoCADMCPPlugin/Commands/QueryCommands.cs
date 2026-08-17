@@ -10,11 +10,11 @@ using static AutoCADMCPPlugin.Commands.EntityHelper;
 
 namespace AutoCADMCPPlugin.Commands
 {
-    public class MeasureDistanceCommand : ICommand
+    public class MeasureDistanceCommand : AcadCommand
     {
-        public string MethodName => "measure_distance";
+        public override string MethodName => "measure_distance";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Point3d pt1 = ParsePoint(parameters["point1"], "point1");
             Point3d pt2 = ParsePoint(parameters["point2"], "point2");
@@ -34,11 +34,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class MeasureAreaCommand : ICommand
+    public class MeasureAreaCommand : AcadCommand
     {
-        public string MethodName => "measure_area";
+        public override string MethodName => "measure_area";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -99,11 +99,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class GetBoundingBoxCommand : ICommand
+    public class GetBoundingBoxCommand : AcadCommand
     {
-        public string MethodName => "get_bounding_box";
+        public override string MethodName => "get_bounding_box";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -136,17 +136,20 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class SelectByWindowCommand : ICommand
+    public class SelectByWindowCommand : AcadCommand
     {
-        public string MethodName => "select_by_window";
+        public override string MethodName => "select_by_window";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
 
-            Point3d minPt = ParsePoint(parameters["min_point"], "min_point");
-            Point3d maxPt = ParsePoint(parameters["max_point"], "max_point");
+            // Accept both "min_point"/"max_point" and the shorter "min"/"max".
+            Point3d minPt = ParsePoint(
+                EntityHelper.Arg(parameters, "min_point", "min"), "min_point");
+            Point3d maxPt = ParsePoint(
+                EntityHelper.Arg(parameters, "max_point", "max"), "max_point");
             int limit = parameters["limit"]?.Value<int>() ?? 500;
             int offset = parameters["offset"]?.Value<int>() ?? 0;
             string filterLayer = parameters["layer"]?.ToString();
@@ -223,11 +226,11 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class SelectByPropertiesCommand : ICommand
+    public class SelectByPropertiesCommand : AcadCommand
     {
-        public string MethodName => "select_by_properties";
+        public override string MethodName => "select_by_properties";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -299,11 +302,11 @@ namespace AutoCADMCPPlugin.Commands
     /// Search all text entities (DBText, MText, and text inside BlockReferences) for a keyword.
     /// Returns matching text, position, layer, and handle. Case-insensitive.
     /// </summary>
-    public class SearchTextCommand : ICommand
+    public class SearchTextCommand : AcadCommand
     {
-        public string MethodName => "search_text";
+        public override string MethodName => "search_text";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -405,7 +408,17 @@ namespace AutoCADMCPPlugin.Commands
                 tr.Commit();
             }
 
-            return CommandResult.Ok(new JObject { ["matches"] = matches, ["count"] = matches.Count, ["keyword"] = keyword });
+            return CommandResult.Ok(new JObject
+            {
+                ["matches"] = matches,
+                ["count"] = matches.Count,
+                ["keyword"] = keyword,
+                // Convenience for the common "did it find anything, and what?" case,
+                // so a caller need not index into matches just to read the first hit.
+                ["first_text"] = matches.Count > 0
+                    ? matches[0]["text"]?.ToString()
+                    : null
+            });
         }
     }
 
@@ -413,11 +426,11 @@ namespace AutoCADMCPPlugin.Commands
     /// Find entities nearest to a given point. Optionally filter by type/layer.
     /// Returns entities sorted by distance from the point.
     /// </summary>
-    public class FindNearestCommand : ICommand
+    public class FindNearestCommand : AcadCommand
     {
-        public string MethodName => "find_nearest";
+        public override string MethodName => "find_nearest";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
@@ -494,85 +507,195 @@ namespace AutoCADMCPPlugin.Commands
     /// <summary>
     /// Measure the distance between two entities (center-to-center or closest approach).
     /// </summary>
-    public class MeasureBetweenCommand : ICommand
+    public class MeasureBetweenCommand : AcadCommand
     {
-        public string MethodName => "measure_between";
+        public override string MethodName => "measure_between";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
-            if (doc == null) return CommandResult.Fail("No active document");
+            if (doc == null) return CommandResult.NoDoc();
 
-            string handle1 = parameters["handle1"]?.ToString();
-            string handle2 = parameters["handle2"]?.ToString();
+            string handle1 = EntityHelper.ArgString(parameters, "handle1", "id1", "entity1");
+            string handle2 = EntityHelper.ArgString(parameters, "handle2", "id2", "entity2");
             if (string.IsNullOrEmpty(handle1) || string.IsNullOrEmpty(handle2))
-                return CommandResult.Fail("Parameters 'handle1' and 'handle2' are required");
+                return CommandResult.BadParam("Parameters 'handle1' and 'handle2' are required");
 
             Database db = doc.Database;
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                if (!Handles.TryResolve(db, handle1, out ObjectId id1)) return CommandResult.Fail($"Entity not found: {handle1}");
-                if (!Handles.TryResolve(db, handle2, out ObjectId id2)) return CommandResult.Fail($"Entity not found: {handle2}");
+                ObjectId id1, id2;
+                if (!Handles.TryResolve(db, handle1, out id1))
+                    return CommandResult.NotFound("Entity not found: " + handle1);
+                if (!Handles.TryResolve(db, handle2, out id2))
+                    return CommandResult.NotFound("Entity not found: " + handle2);
 
                 Entity ent1 = tr.GetObject(id1, OpenMode.ForRead) as Entity;
                 Entity ent2 = tr.GetObject(id2, OpenMode.ForRead) as Entity;
                 if (ent1 == null || ent2 == null)
-                    return CommandResult.Fail("Both handles must refer to valid entities");
+                    return CommandResult.BadParam("Both handles must refer to valid entities");
 
-                Extents3d ext1 = ent1.GeometricExtents;
-                Extents3d ext2 = ent2.GeometricExtents;
+                // Not every entity has usable extents - an empty block reference or a
+                // degenerate curve makes GeometricExtents throw. Report that honestly
+                // instead of failing the whole call.
+                bool approx1, approx2;
+                Point3d? center1 = TryGetCenter(ent1, out approx1);
+                Point3d? center2 = TryGetCenter(ent2, out approx2);
 
-                Point3d center1 = new Point3d((ext1.MinPoint.X + ext1.MaxPoint.X) / 2.0, (ext1.MinPoint.Y + ext1.MaxPoint.Y) / 2.0, 0);
-                Point3d center2 = new Point3d((ext2.MinPoint.X + ext2.MaxPoint.X) / 2.0, (ext2.MinPoint.Y + ext2.MaxPoint.Y) / 2.0, 0);
+                double? centerDist = null, dx = null, dy = null;
+                if (center1.HasValue && center2.HasValue)
+                {
+                    centerDist = center1.Value.DistanceTo(center2.Value);
+                    dx = center2.Value.X - center1.Value.X;
+                    dy = center2.Value.Y - center1.Value.Y;
+                }
 
-                double centerDist = center1.DistanceTo(center2);
-                double dx = center2.X - center1.X;
-                double dy = center2.Y - center1.Y;
-
-                // Try closest point approach for curves
-                double closestDist = centerDist;
-                Point3d closestPt1 = center1, closestPt2 = center2;
-
-                if (ent1 is Curve c1 && ent2 is Curve c2)
+                // Closest approach between two curves is meaningful even when a
+                // centre is not, so compute it independently.
+                double? closestDist = null;
+                Curve c1 = ent1 as Curve;
+                Curve c2 = ent2 as Curve;
+                if (c1 != null && c2 != null)
                 {
                     try
                     {
-                        closestPt1 = c1.GetClosestPointTo(center2, false);
-                        closestPt2 = c2.GetClosestPointTo(closestPt1, false);
-                        closestDist = closestPt1.DistanceTo(closestPt2);
+                        Point3d seed = center2.HasValue ? center2.Value : c2.StartPoint;
+                        Point3d p1 = c1.GetClosestPointTo(seed, false);
+                        Point3d p2 = c2.GetClosestPointTo(p1, false);
+                        closestDist = p1.DistanceTo(p2);
                     }
-                    catch { }
+                    catch (Autodesk.AutoCAD.Runtime.Exception) { }
+                }
+                if (!closestDist.HasValue) closestDist = centerDist;
+
+                var result = new JObject
+                {
+                    ["entity1"] = DescribeEntity(ent1, handle1, center1, approx1),
+                    ["entity2"] = DescribeEntity(ent2, handle2, center2, approx2)
+                };
+
+                if (centerDist.HasValue)
+                {
+                    result["center_distance"] = Math.Round(centerDist.Value, 2);
+                    result["dx"] = Math.Round(dx.Value, 2);
+                    result["dy"] = Math.Round(dy.Value, 2);
+                }
+                else
+                {
+                    result["center_distance"] = JValue.CreateNull();
+                    result["dx"] = JValue.CreateNull();
+                    result["dy"] = JValue.CreateNull();
+                    result["center_distance_note"] =
+                        "One or both entities have no usable centre (no geometric extents), " +
+                        "so centre-to-centre distance could not be computed.";
                 }
 
-                // Get entity descriptions
-                string desc1 = ent1.GetType().Name;
-                string desc2 = ent2.GetType().Name;
-                if (ent1 is DBText t1) desc1 += ": " + t1.TextString;
-                else if (ent1 is MText m1) desc1 += ": " + m1.Text?.Substring(0, Math.Min(40, m1.Text.Length));
-                else if (ent1 is BlockReference b1) desc1 += ": " + b1.Name;
-                if (ent2 is DBText t2) desc2 += ": " + t2.TextString;
-                else if (ent2 is MText m2) desc2 += ": " + m2.Text?.Substring(0, Math.Min(40, m2.Text.Length));
-                else if (ent2 is BlockReference b2) desc2 += ": " + b2.Name;
+                result["closest_distance"] = closestDist.HasValue
+                    ? (JToken)Math.Round(closestDist.Value, 2)
+                    : JValue.CreateNull();
+
+                if (approx1 || approx2)
+                {
+                    result["center_approximate"] = true;
+                    result["center_approximate_note"] =
+                        "A bounding-box centre was used for at least one entity; it is not " +
+                        "the entity's true centre. See entity1/entity2 center_approximate.";
+                }
 
                 tr.Commit();
-                return CommandResult.Ok(new JObject
-                {
-                    ["center_distance"] = Math.Round(centerDist, 2),
-                    ["closest_distance"] = Math.Round(closestDist, 2),
-                    ["dx"] = Math.Round(dx, 2),
-                    ["dy"] = Math.Round(dy, 2),
-                    ["entity1"] = new JObject { ["handle"] = handle1, ["type"] = desc1, ["center"] = new JArray(Math.Round(center1.X, 2), Math.Round(center1.Y, 2)) },
-                    ["entity2"] = new JObject { ["handle"] = handle2, ["type"] = desc2, ["center"] = new JArray(Math.Round(center2.X, 2), Math.Round(center2.Y, 2)) }
-                });
+                return CommandResult.Ok(result);
             }
+        }
+
+        /// <summary>
+        /// Best available centre for an entity. Circles, arcs, ellipses and points have
+        /// a real centre; everything else falls back to the bounding-box centre, which
+        /// is flagged approximate. Returns null when extents are unavailable entirely.
+        /// </summary>
+        private static Point3d? TryGetCenter(Entity ent, out bool approximate)
+        {
+            approximate = false;
+
+            Circle circle = ent as Circle;      // Arc derives from Circle
+            if (circle != null) return circle.Center;
+
+            Ellipse ellipse = ent as Ellipse;
+            if (ellipse != null) return ellipse.Center;
+
+            DBPoint point = ent as DBPoint;
+            if (point != null) return point.Position;
+
+            try
+            {
+                Extents3d ext = ent.GeometricExtents;
+                approximate = true;
+                return new Point3d(
+                    (ext.MinPoint.X + ext.MaxPoint.X) / 2.0,
+                    (ext.MinPoint.Y + ext.MaxPoint.Y) / 2.0,
+                    (ext.MinPoint.Z + ext.MaxPoint.Z) / 2.0);
+            }
+            catch (Autodesk.AutoCAD.Runtime.Exception)
+            {
+                return null;   // no extents - e.g. an empty block reference
+            }
+        }
+
+        private static JObject DescribeEntity(Entity ent, string handle,
+                                              Point3d? center, bool approximate)
+        {
+            var o = new JObject
+            {
+                ["handle"] = handle,
+                ["type"] = BuildEntityDesc(ent)
+            };
+
+            if (center.HasValue)
+            {
+                o["center"] = new JArray(Math.Round(center.Value.X, 2),
+                                         Math.Round(center.Value.Y, 2));
+                o["center_approximate"] = approximate;
+            }
+            else
+            {
+                o["center"] = JValue.CreateNull();
+                o["center_note"] = "This entity has no geometric extents.";
+            }
+            return o;
+        }
+
+        /// <summary>Short human-readable label, e.g. "Circle: r=25.00" or "DBText: ROOM 3".</summary>
+        private static string BuildEntityDesc(Entity ent)
+        {
+            string desc = ent.GetType().Name;
+
+            DBText text = ent as DBText;
+            if (text != null) return desc + ": " + text.TextString;
+
+            MText mtext = ent as MText;
+            if (mtext != null)
+            {
+                string t = mtext.Text ?? "";
+                return desc + ": " + (t.Length > 40 ? t.Substring(0, 40) : t);
+            }
+
+            BlockReference block = ent as BlockReference;
+            if (block != null) return desc + ": " + block.Name;
+
+            Arc arc = ent as Arc;
+            if (arc != null) return desc + ": r=" + arc.Radius.ToString("F2");
+
+            Circle circle = ent as Circle;
+            if (circle != null) return desc + ": r=" + circle.Radius.ToString("F2");
+
+            return desc;
         }
     }
 
-    public class FindIntersectionsCommand : ICommand
+    public class FindIntersectionsCommand : AcadCommand
     {
-        public string MethodName => "find_intersections";
+        public override string MethodName => "find_intersections";
 
-        public CommandResult Execute(JObject parameters)
+        public override CommandResult Execute(JObject parameters)
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
