@@ -260,8 +260,12 @@ namespace AutoCADMCPPlugin.Commands
             if (string.IsNullOrEmpty(handle))
                 return CommandResult.Fail("Parameter 'handle' is required");
 
-            Point3d from = EntityHelper.ParsePoint(parameters["from"], "from");
-            Point3d to = EntityHelper.ParsePoint(parameters["to"], "to");
+            // Accept both "from"/"to" (direct JSON-RPC) and "from_point"/"to_point"
+            // (the MCP tool schema), so callers need no translation table.
+            Point3d from = EntityHelper.ParsePoint(
+                EntityHelper.Arg(parameters, "from", "from_point"), "from");
+            Point3d to = EntityHelper.ParsePoint(
+                EntityHelper.Arg(parameters, "to", "to_point"), "to");
             Vector3d displacement = to - from;
 
             Database db = doc.Database;
@@ -296,8 +300,12 @@ namespace AutoCADMCPPlugin.Commands
             if (string.IsNullOrEmpty(handle))
                 return CommandResult.Fail("Parameter 'handle' is required");
 
-            Point3d from = EntityHelper.ParsePoint(parameters["from"], "from");
-            Point3d to = EntityHelper.ParsePoint(parameters["to"], "to");
+            // Accept both "from"/"to" (direct JSON-RPC) and "from_point"/"to_point"
+            // (the MCP tool schema), so callers need no translation table.
+            Point3d from = EntityHelper.ParsePoint(
+                EntityHelper.Arg(parameters, "from", "from_point"), "from");
+            Point3d to = EntityHelper.ParsePoint(
+                EntityHelper.Arg(parameters, "to", "to_point"), "to");
             Vector3d displacement = to - from;
 
             Database db = doc.Database;

@@ -9,8 +9,8 @@ _Last updated: 2026-08-17 (rebased onto PR #4)_
 
 | Metric | Before | Now |
 |---|---|---|
-| MCP tools | 73 | **186** |
-| C# commands registered | 76 | **185** |
+| MCP tools | 73 | **183** |
+| C# commands registered | 76 | **182** |
 | AutoCAD versions | 2022–2026 | **2021–2027** |
 | Build targets | net48, net8.0 | net48, net8.0, **net10.0** (opt-in) |
 | MCP servers | Python only | **C# self-contained exe** + Python |
@@ -176,11 +176,30 @@ hex handles, document control, command diagnostics). Resolutions:
 | `plot_to_pdf`, `plot_devices` | **Theirs** | Waits for the file, trims pages, reports printable areas |
 | Bundle range | Mine (`R24.0`–`R26.0`) | Keeps 2021 |
 
-Superseded-but-retained tools, now documented as such in their docstrings:
-`list_plot_devices` and `list_paper_sizes` (use `plot_devices`), and
-`plot_layout` (use `plot_to_pdf` — mine returns before the file is written).
-**Recommend deleting these three** in a follow-up; they only add ambiguity for
-an AI client choosing between them.
+`list_plot_devices`, `list_paper_sizes` and `plot_layout` were removed as
+superseded by PR #4's `plot_devices` / `plot_to_pdf`.
+
+## Issue #5
+
+Addressed: parameter aliases (`move_entity`, `copy_entity`, `zoom_window`,
+`select_by_window`), `measure_between` extents crash + approximate-centre
+honesty, `search_text.first_text`, `drawing_info` null path, `create_table`
+rows vs total_rows, and `.gitattributes` for the CRLF noise.
+
+Already fixed by PR #4, not reimplemented: `get_entity` detail fields and the
+`plot_to_pdf` rewrite.
+
+**Deliberately not implemented — needs your decision, not a bug fix:**
+
+1. **`execute_python(code)`** — runs LLM-generated Python in the MCP server
+   process. It does *not* bypass the AutoCAD safety gates (generated code still
+   goes through the plugin's JSON-RPC port, so read-only mode and destructive
+   confirmation still apply), but it is unsandboxed execution on the user's
+   machine with full filesystem and network access. That is a security posture
+   choice for the project owner to make explicitly.
+2. **`mcpagent` AutoCode Agent** — a separate FastMCP server that calls an LLM to
+   generate drawing code. A new component with its own API-key handling, not a
+   fix to this one. The issue itself notes its hardcoded relative path.
 
 ## Remaining work
 

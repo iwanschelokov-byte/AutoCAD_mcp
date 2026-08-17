@@ -33,7 +33,7 @@ AI-powered AutoCAD automation via the **Model Context Protocol (MCP)**. Enables 
 
 ### Two MCP servers, same tools
 
-Both expose the identical 186 tools; pick whichever suits your setup.
+Both expose the identical 183 tools; pick whichever suits your setup.
 
 | | C# server | Python server |
 |---|---|---|
@@ -50,7 +50,7 @@ if the generated `tools.json` is stale.
 
 The C# plugin loads inside AutoCAD as an addin and exposes the same JSON-RPC pipeline over **two transports** simultaneously:
 
-1. **TCP socket on `localhost:8081`** — used by whichever MCP server you run, which marshals the 186 tools over stdio for Claude / Claude Code / Claude Desktop.
+1. **TCP socket on `localhost:8081`** — used by whichever MCP server you run, which marshals the 183 tools over stdio for Claude / Claude Code / Claude Desktop.
 2. **HTTP loopback on `localhost:8082`** — used by browser apps that can't open raw TCP sockets (a `fetch()` call to `http://127.0.0.1:8082/jsonrpc` reaches every command in the registry, with CORS headers + Chrome Private-Network-Access support out of the box).
 
 Both transports route through the same `JsonRpcHandler`, so every tool (`create_line`, `create_table`, `capture_screenshot`, …) is reachable identically from either path. Commands are marshaled to AutoCAD's main UI thread via `Application.Idle` + `DocumentLock` — except introspection tools, which answer directly so tool discovery keeps working while AutoCAD is busy.
@@ -59,7 +59,7 @@ Both transports route through the same `JsonRpcHandler`, so every tool (`create_
 
 AutoCAD's .NET API is single-threaded. The plugin uses `Application.Idle` event + `DocumentLock` to safely execute commands from the socket handler threads on the main thread.
 
-## Features — 186 MCP Tools
+## Features — 183 MCP Tools
 
 ### System (6)
 | Tool | Description |
@@ -199,7 +199,7 @@ AutoCAD's .NET API is single-threaded. The plugin uses `Application.Idle` event 
 | `get_server_options` | Read current read-only / confirmation / audit settings |
 | `set_server_options` | Change and persist the safety posture |
 
-### Layouts & Paper Space (15)
+### Layouts & Paper Space (12)
 | Tool | Description |
 |------|-------------|
 | `list_layouts` | List sheets with paper size, plot device and scale |
@@ -207,10 +207,11 @@ AutoCAD's .NET API is single-threaded. The plugin uses `Application.Idle` event 
 | `rename_layout` / `copy_layout` | Rename or duplicate a layout with its setup |
 | `set_current_layout` | Switch active sheet (`Model` for model space) |
 | `get_page_setup` / `set_page_setup` | Read/configure device, paper size, plot type, scale, rotation, CTB |
-| `list_plot_devices` / `list_paper_sizes` | Discover available plotters and media |
 | `list_viewports` / `create_viewport` | Inspect or add paper-space viewports |
 | `set_viewport_scale` / `lock_viewport` | Set viewport scale (`"1:100"`); lock against zoom |
-| `plot_layout` | Plot a layout to PDF using its page setup |
+
+For plotting and device discovery use `plot_to_pdf` and `plot_devices` (listed
+under Drawing Management) — they wait for the file and report printable areas.
 
 ### External References (9)
 | Tool | Description |
@@ -664,7 +665,7 @@ autocad-plugin/
     │       ├── ICommand.cs        # Command interface
     │       └── CommandResult.cs   # Result wrapper
     └── mcp_server/                # Python MCP Server
-        ├── server.py              # 186 MCP tools via FastMCP
+        ├── server.py              # 183 MCP tools via FastMCP
         ├── autocad_client.py      # Async TCP client with auto-reconnect
         └── requirements.txt
 ```

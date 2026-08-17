@@ -180,13 +180,10 @@ namespace AutoCADMCPPlugin.Core
             Register(new CopyLayoutCommand());
             Register(new GetPageSetupCommand());
             Register(new SetPageSetupCommand());
-            Register(new ListPlotDevicesCommand());
-            Register(new ListPaperSizesCommand());
             Register(new ListViewportsCommand());
             Register(new CreateViewportCommand());
             Register(new SetViewportScaleCommand());
             Register(new LockViewportCommand());
-            Register(new PlotLayoutCommand());
 
             // ================================================================
             // v2.0 — Xrefs and external drawing data

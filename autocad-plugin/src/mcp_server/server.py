@@ -464,7 +464,10 @@ async def move_entity(
     from_point: list[float],
     to_point: list[float]
 ) -> str:
-    """Move an entity from one point to another."""
+    """Move an entity from one point to another.
+
+    Over direct JSON-RPC the plugin accepts either `from`/`to` or `from_point`/`to_point`.
+    """
     return await _call("move_entity", {"handle": handle, "from": from_point, "to": to_point})
 
 
@@ -474,7 +477,10 @@ async def copy_entity(
     from_point: list[float],
     to_point: list[float]
 ) -> str:
-    """Copy an entity from one point to another. Returns the new entity's handle."""
+    """Copy an entity from one point to another. Returns the new entity's handle.
+
+    Over direct JSON-RPC the plugin accepts either `from`/`to` or `from_point`/`to_point`.
+    """
     return await _call("copy_entity", {"handle": handle, "from": from_point, "to": to_point})
 
 
@@ -645,6 +651,8 @@ async def select_by_window(
     Optional layer/type filters narrow the result; `type` accepts "INSERT",
     "AcDbBlockReference", "BlockReference" or "block" alike. The answer carries
     `total` and `truncated` so a cut-off list is never mistaken for a complete one.
+
+    Over direct JSON-RPC the plugin accepts either `min_point`/`max_point` or `min`/`max`.
     """
     params: dict = {
         "min_point": min_point,
@@ -1021,7 +1029,10 @@ async def zoom_extents() -> str:
 
 @mcp.tool()
 async def zoom_window(min_point: list[float], max_point: list[float]) -> str:
-    """Zoom to a specific rectangular area defined by min [x,y] and max [x,y] corners."""
+    """Zoom to a specific rectangular area defined by min [x,y] and max [x,y] corners.
+
+    Over direct JSON-RPC the plugin accepts either `min`/`max` or `min_point`/`max_point`.
+    """
     return await _call("zoom_window", {"min": min_point, "max": max_point})
 
 
@@ -1730,29 +1741,6 @@ async def set_page_setup(
     return await _call("set_page_setup", params)
 
 
-@mcp.tool()
-async def list_plot_devices() -> str:
-    """List available plotters/printers configured in AutoCAD.
-
-    Superseded by `plot_devices`, which also returns plot style tables and each
-    device's paper sizes with printable areas and margins. Prefer that one.
-    """
-    return await _call("list_plot_devices")
-
-
-@mcp.tool()
-async def list_paper_sizes(layout: str = "", device: str = "") -> str:
-    """List paper sizes available for a plot device (canonical + display names).
-
-    Scoped to a layout. For a device-oriented listing that also reports printable
-    areas and margins, use `plot_devices`.
-    """
-    params: dict = {}
-    if layout:
-        params["layout"] = layout
-    if device:
-        params["device"] = device
-    return await _call("list_paper_sizes", params)
 
 
 @mcp.tool()
@@ -1805,19 +1793,6 @@ async def lock_viewport(id: str, locked: bool = True) -> str:
     """Lock or unlock a viewport so its scale cannot be changed by zooming."""
     return await _call("lock_viewport", {"id": id, "locked": locked})
 
-
-@mcp.tool()
-async def plot_layout(output_path: str, layout: str = "") -> str:
-    """Set a layout current and queue an EXPORTPDF for it.
-
-    Prefer `plot_to_pdf`: it waits for the PDF to actually be written and can trim
-    the page to a plotted window. This tool returns as soon as the command is
-    queued, so the file may not exist yet when it replies.
-    """
-    params: dict = {"output_path": output_path}
-    if layout:
-        params["layout"] = layout
-    return await _call("plot_layout", params)
 
 
 # =============================================================================

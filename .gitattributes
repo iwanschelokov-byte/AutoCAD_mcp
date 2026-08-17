@@ -1,0 +1,36 @@
+# Normalise line endings so contributors on different platforms do not produce
+# whole-file diffs. Requested in issue #5, where a contributor's checkout flipped
+# the repo to CRLF and made most .cs/.py files look changed when they were not.
+#
+# Everything text-like is stored LF in the repository and checked out however the
+# platform prefers, except the few file types Windows genuinely needs as CRLF.
+
+* text=auto
+
+# Source and config: LF in the repo
+*.cs      text eol=lf
+*.csproj  text eol=lf
+*.sln     text eol=crlf
+*.py      text eol=lf
+*.md      text eol=lf
+*.json    text eol=lf
+*.xml     text eol=lf
+*.yml     text eol=lf
+*.yaml    text eol=lf
+
+# Windows-only scripts: cmd.exe mis-parses LF-only batch files, and Inno Setup
+# expects CRLF, so these stay CRLF in the working tree.
+*.bat     text eol=crlf
+*.cmd     text eol=crlf
+*.ps1     text eol=crlf
+*.iss     text eol=crlf
+
+# Binaries: never touch
+*.dll     binary
+*.exe     binary
+*.pdb     binary
+*.dwg     binary
+*.png     binary
+*.jpg     binary
+*.pdf     binary
+*.xlsx    binary

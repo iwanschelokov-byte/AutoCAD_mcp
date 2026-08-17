@@ -390,7 +390,7 @@
   },
   {
     "name": "copy_entity",
-    "description": "Copy an entity from one point to another. Returns the new entity's handle.",
+    "description": "Copy an entity from one point to another. Returns the new entity's handle.\n\nOver direct JSON-RPC the plugin accepts either `from`/`to` or `from_point`/`to_point`.",
     "summary": "Copy an entity from one point to another. Returns the new entity's handle.",
     "inputSchema": {
       "type": "object",
@@ -3170,35 +3170,6 @@
     }
   },
   {
-    "name": "list_paper_sizes",
-    "description": "List paper sizes available for a plot device (canonical + display names).\n\nScoped to a layout. For a device-oriented listing that also reports printable\nareas and margins, use `plot_devices`.",
-    "summary": "List paper sizes available for a plot device (canonical + display names).",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "layout": {
-          "type": "string"
-        },
-        "device": {
-          "type": "string"
-        }
-      },
-      "required": [],
-      "additionalProperties": true
-    }
-  },
-  {
-    "name": "list_plot_devices",
-    "description": "List available plotters/printers configured in AutoCAD.\n\nSuperseded by `plot_devices`, which also returns plot style tables and each\ndevice's paper sizes with printable areas and margins. Prefer that one.",
-    "summary": "List available plotters/printers configured in AutoCAD.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {},
-      "required": [],
-      "additionalProperties": true
-    }
-  },
-  {
     "name": "list_sheets",
     "description": "List the sheets in a .dst sheet set with number, title, name and description.",
     "summary": "List the sheets in a .dst sheet set with number, title, name and description.",
@@ -3513,7 +3484,7 @@
   },
   {
     "name": "move_entity",
-    "description": "Move an entity from one point to another.",
+    "description": "Move an entity from one point to another.\n\nOver direct JSON-RPC the plugin accepts either `from`/`to` or `from_point`/`to_point`.",
     "summary": "Move an entity from one point to another.",
     "inputSchema": {
       "type": "object",
@@ -3626,26 +3597,6 @@
         }
       },
       "required": [],
-      "additionalProperties": true
-    }
-  },
-  {
-    "name": "plot_layout",
-    "description": "Set a layout current and queue an EXPORTPDF for it.\n\nPrefer `plot_to_pdf`: it waits for the PDF to actually be written and can trim\nthe page to a plotted window. This tool returns as soon as the command is\nqueued, so the file may not exist yet when it replies.",
-    "summary": "Set a layout current and queue an EXPORTPDF for it.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "output_path": {
-          "type": "string"
-        },
-        "layout": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "output_path"
-      ],
       "additionalProperties": true
     }
   },
@@ -4131,7 +4082,7 @@
   },
   {
     "name": "select_by_window",
-    "description": "Find entities in a rectangular region.\n\nmode=\"window\" (default) returns only entities fully inside the box;\nmode=\"crossing\" also returns anything the box touches — use it when picking\na title block or a sheet region, whose entities stick out past the frame.\n\nOptional layer/type filters narrow the result; `type` accepts \"INSERT\",\n\"AcDbBlockReference\", \"BlockReference\" or \"block\" alike. The answer carries\n`total` and `truncated` so a cut-off list is never mistaken for a complete one.",
+    "description": "Find entities in a rectangular region.\n\nmode=\"window\" (default) returns only entities fully inside the box;\nmode=\"crossing\" also returns anything the box touches — use it when picking\na title block or a sheet region, whose entities stick out past the frame.\n\nOptional layer/type filters narrow the result; `type` accepts \"INSERT\",\n\"AcDbBlockReference\", \"BlockReference\" or \"block\" alike. The answer carries\n`total` and `truncated` so a cut-off list is never mistaken for a complete one.\n\nOver direct JSON-RPC the plugin accepts either `min_point`/`max_point` or `min`/`max`.",
     "summary": "Find entities in a rectangular region.",
     "inputSchema": {
       "type": "object",
@@ -4762,7 +4713,7 @@
   },
   {
     "name": "zoom_window",
-    "description": "Zoom to a specific rectangular area defined by min [x,y] and max [x,y] corners.",
+    "description": "Zoom to a specific rectangular area defined by min [x,y] and max [x,y] corners.\n\nOver direct JSON-RPC the plugin accepts either `min`/`max` or `min_point`/`max_point`.",
     "summary": "Zoom to a specific rectangular area defined by min [x,y] and max [x,y] corners.",
     "inputSchema": {
       "type": "object",

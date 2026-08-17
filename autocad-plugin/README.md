@@ -20,11 +20,11 @@ AutoCAD's .NET API is single-threaded (UI thread only). The plugin uses `Applica
 
 ## Supported Tools
 
-**186 MCP tools** across system, drawing, entities, layers, blocks, annotations,
+**183 MCP tools** across system, drawing, entities, layers, blocks, annotations,
 layouts/paper space, xrefs, block attributes, modify operations, 3D solids,
 groups/layer states/views/UCS, and drawing data/audit.
 
-The authoritative tool table lives in the [root README](../README.md#features--186-mcp-tools) —
+The authoritative tool table lives in the [root README](../README.md#features--183-mcp-tools) —
 it is kept in sync with `Core/CommandRegistry.cs` and is not duplicated here.
 
 At runtime, ask the plugin itself:

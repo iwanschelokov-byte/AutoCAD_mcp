@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Specialized;
 using System.Linq;
 using Newtonsoft.Json.Linq;
 using Autodesk.AutoCAD.ApplicationServices;
@@ -458,105 +457,6 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
-    public class ListPlotDevicesCommand : AcadCommand
-    {
-        public override string MethodName => "list_plot_devices";
-
-        public override CommandResult Execute(JObject parameters)
-        {
-            Document doc = Application.DocumentManager.MdiActiveDocument;
-            if (doc == null) return CommandResult.NoDoc();
-
-            var devices = new JArray();
-            try
-            {
-                var psv = PlotSettingsValidator.Current;
-                // RefreshLists needs a PlotSettings to work against; a throwaway
-                // instance keeps the real layouts untouched.
-                using (var scratch = new PlotSettings(false))
-                {
-                    psv.RefreshLists(scratch);
-                }
-                StringCollection list = psv.GetPlotDeviceList();
-                foreach (string d in list) devices.Add(d);
-            }
-            catch (Autodesk.AutoCAD.Runtime.Exception ex)
-            {
-                return CommandResult.Fail(ErrorCode.Internal, $"Could not read plot devices: {ex.Message}");
-            }
-
-            return CommandResult.Ok(new JObject
-            {
-                ["devices"] = devices,
-                ["count"] = devices.Count
-            });
-        }
-    }
-
-    public class ListPaperSizesCommand : AcadCommand
-    {
-        public override string MethodName => "list_paper_sizes";
-
-        public override CommandResult Execute(JObject parameters)
-        {
-            Document doc = Application.DocumentManager.MdiActiveDocument;
-            if (doc == null) return CommandResult.NoDoc();
-
-            string layoutName = parameters["layout"]?.ToString() ?? LayoutManager.Current.CurrentLayout;
-            string device = parameters["device"]?.ToString();
-
-            var sizes = new JArray();
-
-            using (EntityHelper.LockDoc())
-            using (Transaction tr = doc.Database.TransactionManager.StartTransaction())
-            {
-                ObjectId id = LayoutHelper.FindLayout(tr, doc.Database, layoutName);
-                if (id.IsNull) return CommandResult.NotFound($"Layout '{layoutName}' not found");
-
-                // Work on a throwaway copy so listing never mutates the real layout.
-                var lay = (Layout)tr.GetObject(id, OpenMode.ForRead);
-                using (var ps = new PlotSettings(lay.ModelType))
-                {
-                    ps.CopyFrom(lay);
-                    var psv = PlotSettingsValidator.Current;
-                    try
-                    {
-                        if (!string.IsNullOrWhiteSpace(device))
-                            psv.SetPlotConfigurationName(ps, device, null);
-                        psv.RefreshLists(ps);
-                        StringCollection list = psv.GetCanonicalMediaNameList(ps);
-                        foreach (string m in list)
-                        {
-                            sizes.Add(new JObject
-                            {
-                                ["canonical"] = m,
-                                ["local"] = SafeLocal(psv, ps, m)
-                            });
-                        }
-                    }
-                    catch (Autodesk.AutoCAD.Runtime.Exception ex)
-                    {
-                        return CommandResult.Fail(ErrorCode.Internal,
-                            $"Could not read paper sizes: {ex.Message}");
-                    }
-                }
-                tr.Commit();
-            }
-
-            return CommandResult.Ok(new JObject
-            {
-                ["paper_sizes"] = sizes,
-                ["count"] = sizes.Count
-            });
-        }
-
-        private static string SafeLocal(PlotSettingsValidator psv, PlotSettings ps, string canonical)
-        {
-            try { return psv.GetLocaleMediaName(ps, canonical); }
-            catch { return canonical; }
-        }
-    }
-
     // ========================================================================
     // Viewports (paper space)
     // ========================================================================
@@ -808,46 +708,4 @@ namespace AutoCADMCPPlugin.Commands
     // Plotting
     // ========================================================================
 
-    public class PlotLayoutCommand : AcadCommand
-    {
-        public override string MethodName => "plot_layout";
-
-        public override CommandResult Execute(JObject parameters)
-        {
-            Document doc = Application.DocumentManager.MdiActiveDocument;
-            if (doc == null) return CommandResult.NoDoc();
-
-            string outputPath = parameters["output_path"]?.ToString();
-            if (string.IsNullOrWhiteSpace(outputPath))
-                return CommandResult.BadParam("Parameter 'output_path' is required");
-
-            string layoutName = parameters["layout"]?.ToString();
-
-            using (EntityHelper.LockDoc())
-            {
-                var lm = LayoutManager.Current;
-                if (!string.IsNullOrWhiteSpace(layoutName))
-                {
-                    try { lm.CurrentLayout = layoutName; }
-                    catch (Autodesk.AutoCAD.Runtime.Exception)
-                    {
-                        return CommandResult.NotFound($"Layout '{layoutName}' not found");
-                    }
-                }
-            }
-
-            // EXPORTPDF honours the current layout's page setup and is far more
-            // reliable from an Idle context than driving PlotEngine directly.
-            string cmd = $"._-EXPORTPDF \"{outputPath}\" ";
-            doc.SendStringToExecute(cmd, true, false, false);
-
-            return CommandResult.Ok(new JObject
-            {
-                ["output_path"] = outputPath,
-                ["layout"] = LayoutManager.Current.CurrentLayout,
-                ["message"] = "PDF export command queued in AutoCAD. " +
-                              "The file appears once AutoCAD finishes processing."
-            });
-        }
-    }
 }

@@ -34,8 +34,11 @@ namespace AutoCADMCPPlugin.Commands
             Document doc = Application.DocumentManager.MdiActiveDocument;
             if (doc == null) return CommandResult.Fail("No active document");
 
-            Point3d min = EntityHelper.ParsePoint(parameters["min"], "min");
-            Point3d max = EntityHelper.ParsePoint(parameters["max"], "max");
+            // Accept both "min"/"max" and "min_point"/"max_point".
+            Point3d min = EntityHelper.ParsePoint(
+                EntityHelper.Arg(parameters, "min", "min_point"), "min");
+            Point3d max = EntityHelper.ParsePoint(
+                EntityHelper.Arg(parameters, "max", "max_point"), "max");
 
             Editor ed = doc.Editor;
 

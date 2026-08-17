@@ -157,10 +157,41 @@ about AutoCAD 2027's bundled `Newtonsoft.Json`: referencing our own NuGet copy
 for the net10 leg causes a runtime `MissingMethodException`, so the build now
 references AutoCAD 2027's assembly when present.
 
-`list_plot_devices`, `list_paper_sizes` and `plot_layout` are superseded by
-PR #4's `plot_devices` and `plot_to_pdf`. They are retained but their docstrings
-now say so; `plot_layout` in particular returns before the PDF is written, where
-`plot_to_pdf` waits.
+`list_plot_devices`, `list_paper_sizes` and `plot_layout` were **removed** as
+superseded by PR #4's `plot_devices` and `plot_to_pdf`, which do strictly more
+(printable areas and margins; waiting for the file and trimming the page).
+`plot_layout` in particular reported success before the PDF existed.
+
+### Fixed — issue #5 (tool-behaviour pitfalls and parameter aliases)
+
+- **Parameter aliases**, so the MCP tool schema and the direct JSON-RPC contract
+  no longer diverge and agents need no translation table:
+  `move_entity`/`copy_entity` accept `from`/`to` **and** `from_point`/`to_point`;
+  `zoom_window` and `select_by_window` accept `min`/`max` **and**
+  `min_point`/`max_point`.
+- **`measure_between` no longer throws** when an entity has no geometric extents
+  (an empty block reference, a degenerate curve). `center_distance`, `dx` and `dy`
+  become null with a `center_distance_note`, and `closest_distance` is still
+  computed for curve pairs. It now also uses each entity's *true* centre for
+  circles, arcs, ellipses and points, flagging bounding-box fallbacks with
+  `center_approximate` rather than silently passing them off as centres.
+- **`search_text`** returns `first_text` for the common "did it find anything,
+  and what?" case.
+- **`drawing_info`** returns `path: null` (not `""`) for an unsaved drawing, plus
+  an explicit `is_saved` flag.
+- **`create_table`** distinguishes `rows` (data rows, as requested) from
+  `total_rows` (including a title row), and echoes `title` when one was set.
+- **`.gitattributes` added** so line endings normalise to LF in the repository
+  (CRLF for `.bat`/`.cmd`/`.ps1`/`.iss`, which Windows needs) — the noisy-diff
+  problem the issue reported.
+
+Already covered by PR #4 and therefore not reimplemented: the `get_entity`
+detail fields for Arc/Polyline/Spline/Ellipse/MText/BlockReference, and the
+`plot_to_pdf` rewrite onto `-PLOT`.
+
+Not implemented, needing a product decision rather than a fix: `execute_python`
+(arbitrary in-process Python execution) and the `mcpagent` AutoCode Agent.
+See STATUS.md.
 
 ### Known gaps
 

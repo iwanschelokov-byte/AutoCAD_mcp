@@ -195,7 +195,12 @@ namespace AutoCADMCPPlugin.Commands
             var data = new JObject
             {
                 ["name"] = doc.Name,
-                ["path"] = db.Filename
+                // An unsaved drawing has no path. Report null rather than "" so a
+                // caller can test for it without guessing what empty means.
+                ["path"] = string.IsNullOrEmpty(db.Filename)
+                    ? (JToken)JValue.CreateNull()
+                    : db.Filename,
+                ["is_saved"] = !string.IsNullOrEmpty(db.Filename)
             };
 
             int entityCount = 0;

@@ -319,7 +319,11 @@ namespace AutoCADMCPPlugin.Commands
 
                 var result = EntityToJson(id);
                 result["type"] = "Table";
-                result["rows"] = totalRows;
+                // "rows" is what the caller asked for (data rows); "total_rows"
+                // includes the title row when one was added.
+                result["rows"] = rows;
+                result["total_rows"] = totalRows;
+                if (!string.IsNullOrEmpty(title)) result["title"] = title;
                 result["columns"] = columns;
                 return CommandResult.Ok(result);
             }
