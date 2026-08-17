@@ -60,12 +60,16 @@ namespace AutoCADMCPPlugin.Core
             Register(new SetSystemVariableCommand());
             Register(new GetSystemVariableCommand());
             Register(new ExecuteCommandCommand());
+            Register(new ReadCommandLineCommand());
 
             // === Drawing / Document ===
             Register(new DrawingNewCommand());
             Register(new DrawingOpenCommand());
             Register(new DrawingSaveCommand());
             Register(new DrawingInfoCommand());
+            Register(new DrawingListCommand());
+            Register(new DrawingCloseCommand());
+            Register(new CloseAllCommand());
 
             // === Entity Creation ===
             Register(new CreateLineCommand());
@@ -81,6 +85,7 @@ namespace AutoCADMCPPlugin.Core
             // === Entity Query & Modification ===
             Register(new ListEntitiesCommand());
             Register(new GetEntityCommand());
+            Register(new GetEntitiesCommand());
             Register(new EraseEntityCommand());
             Register(new MoveEntityCommand());
             Register(new CopyEntityCommand());
@@ -145,7 +150,10 @@ namespace AutoCADMCPPlugin.Core
             // === Drawing Utilities (Sprint 4) ===
             Register(new PurgeDrawingCommand());
             Register(new SetUnitsCommand());
+
+            // === Plotting ===
             Register(new PlotToPdfCommand());
+            Register(new PlotDevicesCommand());
 
             // === View ===
             Register(new ZoomExtentsCommand());

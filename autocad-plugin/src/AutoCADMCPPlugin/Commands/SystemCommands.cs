@@ -18,6 +18,7 @@ namespace AutoCADMCPPlugin.Commands
             {
                 ["plugin"] = Plugin.PluginName,
                 ["version"] = Plugin.Version,
+                ["build"] = Plugin.Build,
                 ["autocad_running"] = true,
                 ["document_open"] = doc != null,
                 ["document_name"] = doc?.Name ?? "none"

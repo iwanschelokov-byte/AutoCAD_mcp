@@ -50,8 +50,7 @@ namespace AutoCADMCPPlugin.Commands
             Database db = doc.Database;
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                Handle h = new Handle(Convert.ToInt64(handle));
-                if (!db.TryGetObjectId(h, out ObjectId id))
+                if (!Handles.TryResolve(db, handle, out ObjectId id))
                     return CommandResult.Fail($"Entity not found: {handle}");
 
                 Entity ent = tr.GetObject(id, OpenMode.ForRead) as Entity;
@@ -116,8 +115,7 @@ namespace AutoCADMCPPlugin.Commands
             Database db = doc.Database;
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                Handle h = new Handle(Convert.ToInt64(handle));
-                if (!db.TryGetObjectId(h, out ObjectId id))
+                if (!Handles.TryResolve(db, handle, out ObjectId id))
                     return CommandResult.Fail($"Entity not found: {handle}");
 
                 Entity ent = tr.GetObject(id, OpenMode.ForRead) as Entity;
@@ -150,6 +148,18 @@ namespace AutoCADMCPPlugin.Commands
             Point3d minPt = ParsePoint(parameters["min_point"], "min_point");
             Point3d maxPt = ParsePoint(parameters["max_point"], "max_point");
             int limit = parameters["limit"]?.Value<int>() ?? 500;
+            int offset = parameters["offset"]?.Value<int>() ?? 0;
+            string filterLayer = parameters["layer"]?.ToString();
+            string filterType = parameters["type"]?.ToString();
+            bool detailed = parameters["detailed"]?.Value<bool>() ?? false;
+
+            // "window" (default) keeps AutoCAD's meaning: only entities fully
+            // inside the box. "crossing" also returns anything the box touches —
+            // which is what you actually want when picking a title block or a
+            // sheet region, because those entities stick out past the frame.
+            string mode = (parameters["mode"]?.ToString() ?? "window").Trim().ToLowerInvariant();
+            if (mode != "window" && mode != "crossing")
+                return CommandResult.Fail($"Unknown mode '{mode}'. Use \"window\" (fully inside) or \"crossing\" (touching).");
 
             double winMinX = Math.Min(minPt.X, maxPt.X);
             double winMinY = Math.Min(minPt.Y, maxPt.Y);
@@ -158,40 +168,58 @@ namespace AutoCADMCPPlugin.Commands
 
             Database db = doc.Database;
             JArray matches = new JArray();
+            int total = 0;
+            int skippedNoExtents = 0;
 
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
                 BlockTable bt = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
                 BlockTableRecord ms = (BlockTableRecord)tr.GetObject(bt[BlockTableRecord.ModelSpace], OpenMode.ForRead);
 
-                int count = 0;
                 foreach (ObjectId id in ms)
                 {
-                    if (count >= limit) break;
                     Entity ent = tr.GetObject(id, OpenMode.ForRead) as Entity;
                     if (ent == null) continue;
 
-                    try
+                    if (!string.IsNullOrEmpty(filterLayer) &&
+                        !ent.Layer.Equals(filterLayer, StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    if (!EntityInfo.TypeMatches(ent, filterType))
+                        continue;
+
+                    if (!EntityInfo.TryExtents(ent, out Extents3d ext))
                     {
-                        Extents3d ext = ent.GeometricExtents;
-                        if (ext.MinPoint.X >= winMinX && ext.MinPoint.Y >= winMinY &&
-                            ext.MaxPoint.X <= winMaxX && ext.MaxPoint.Y <= winMaxY)
-                        {
-                            matches.Add(new JObject
-                            {
-                                ["handle"] = id.Handle.Value.ToString(),
-                                ["type"] = ent.GetType().Name,
-                                ["layer"] = ent.Layer
-                            });
-                            count++;
-                        }
+                        skippedNoExtents++;
+                        continue;
                     }
-                    catch { /* entities without extents */ }
+
+                    bool hit = mode == "crossing"
+                        ? EntityInfo.Crosses(ext, winMinX, winMinY, winMaxX, winMaxY)
+                        : EntityInfo.Inside(ext, winMinX, winMinY, winMaxX, winMaxY);
+                    if (!hit) continue;
+
+                    // Count every match, emit only the requested page. Without
+                    // this the caller could not tell "there are exactly 500"
+                    // from "the answer was cut off at 500".
+                    total++;
+                    if (total <= offset) continue;
+                    if (matches.Count < limit)
+                        matches.Add(EntityInfo.Summarize(tr, id, ent, detailed));
                 }
                 tr.Commit();
             }
 
-            return CommandResult.Ok(new JObject { ["entities"] = matches, ["count"] = matches.Count });
+            var result = new JObject
+            {
+                ["entities"] = matches,
+                ["count"] = matches.Count,
+                ["total"] = total,
+                ["offset"] = offset,
+                ["truncated"] = total > offset + matches.Count,
+                ["mode"] = mode
+            };
+            if (skippedNoExtents > 0) result["skipped_no_extents"] = skippedNoExtents;
+            return CommandResult.Ok(result);
         }
     }
 
@@ -209,44 +237,61 @@ namespace AutoCADMCPPlugin.Commands
             int? filterColor = parameters["color"]?.Value<int>();
             string filterLinetype = parameters["linetype"]?.ToString();
             int limit = parameters["limit"]?.Value<int>() ?? 500;
+            int offset = parameters["offset"]?.Value<int>() ?? 0;
+            bool detailed = parameters["detailed"]?.Value<bool>() ?? false;
+            string blockName = parameters["block_name"]?.ToString();
 
             Database db = doc.Database;
             JArray matches = new JArray();
+            int total = 0;
 
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
                 BlockTable bt = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
                 BlockTableRecord ms = (BlockTableRecord)tr.GetObject(bt[BlockTableRecord.ModelSpace], OpenMode.ForRead);
 
-                int count = 0;
                 foreach (ObjectId id in ms)
                 {
-                    if (count >= limit) break;
                     Entity ent = tr.GetObject(id, OpenMode.ForRead) as Entity;
                     if (ent == null) continue;
 
                     if (!string.IsNullOrEmpty(filterLayer) && !ent.Layer.Equals(filterLayer, StringComparison.OrdinalIgnoreCase))
                         continue;
-                    if (!string.IsNullOrEmpty(filterType) && !ent.GetType().Name.Equals(filterType, StringComparison.OrdinalIgnoreCase))
+                    // Matches the .NET name, the AcDb class name, the DXF name
+                    // or an alias — "AcDbBlockReference", "BlockReference",
+                    // "INSERT" and "block" all select the same entities.
+                    if (!EntityInfo.TypeMatches(ent, filterType))
                         continue;
                     if (filterColor.HasValue && ent.ColorIndex != filterColor.Value)
                         continue;
                     if (!string.IsNullOrEmpty(filterLinetype) && !ent.Linetype.Equals(filterLinetype, StringComparison.OrdinalIgnoreCase))
                         continue;
-
-                    matches.Add(new JObject
+                    if (!string.IsNullOrEmpty(blockName))
                     {
-                        ["handle"] = id.Handle.Value.ToString(),
-                        ["type"] = ent.GetType().Name,
-                        ["layer"] = ent.Layer,
-                        ["color"] = ent.ColorIndex
-                    });
-                    count++;
+                        var bref = ent as BlockReference;
+                        if (bref == null) continue;
+                        string bn = null;
+                        try { bn = bref.Name; } catch { }
+                        if (bn == null || !bn.Equals(blockName, StringComparison.OrdinalIgnoreCase))
+                            continue;
+                    }
+
+                    total++;
+                    if (total <= offset) continue;
+                    if (matches.Count < limit)
+                        matches.Add(EntityInfo.Summarize(tr, id, ent, detailed));
                 }
                 tr.Commit();
             }
 
-            return CommandResult.Ok(new JObject { ["entities"] = matches, ["count"] = matches.Count });
+            return CommandResult.Ok(new JObject
+            {
+                ["entities"] = matches,
+                ["count"] = matches.Count,
+                ["total"] = total,
+                ["offset"] = offset,
+                ["truncated"] = total > offset + matches.Count
+            });
         }
     }
 
@@ -292,7 +337,7 @@ namespace AutoCADMCPPlugin.Commands
                         {
                             matches.Add(new JObject
                             {
-                                ["handle"] = id.Handle.Value.ToString(),
+                                ["handle"] = Handles.Format(id),
                                 ["type"] = "DBText",
                                 ["text"] = dbt.TextString,
                                 ["position"] = new JArray(dbt.Position.X, dbt.Position.Y, dbt.Position.Z),
@@ -311,7 +356,7 @@ namespace AutoCADMCPPlugin.Commands
                         {
                             matches.Add(new JObject
                             {
-                                ["handle"] = id.Handle.Value.ToString(),
+                                ["handle"] = Handles.Format(id),
                                 ["type"] = "MText",
                                 ["text"] = plainText,
                                 ["text_clean"] = searchable.Trim(),
@@ -343,7 +388,7 @@ namespace AutoCADMCPPlugin.Commands
                         {
                             var obj = new JObject
                             {
-                                ["handle"] = id.Handle.Value.ToString(),
+                                ["handle"] = Handles.Format(id),
                                 ["type"] = "BlockReference",
                                 ["block_name"] = bref.Name,
                                 ["position"] = new JArray(bref.Position.X, bref.Position.Y, bref.Position.Z),
@@ -396,7 +441,7 @@ namespace AutoCADMCPPlugin.Commands
                     Entity ent = tr.GetObject(id, OpenMode.ForRead) as Entity;
                     if (ent == null) continue;
 
-                    if (!string.IsNullOrEmpty(filterType) && !ent.GetType().Name.Equals(filterType, StringComparison.OrdinalIgnoreCase))
+                    if (!EntityInfo.TypeMatches(ent, filterType))
                         continue;
                     if (!string.IsNullOrEmpty(filterLayer) && !ent.Layer.Equals(filterLayer, StringComparison.OrdinalIgnoreCase))
                         continue;
@@ -415,8 +460,9 @@ namespace AutoCADMCPPlugin.Commands
                         {
                             var obj = new JObject
                             {
-                                ["handle"] = id.Handle.Value.ToString(),
+                                ["handle"] = Handles.Format(id),
                                 ["type"] = ent.GetType().Name,
+                                ["dxf_type"] = EntityInfo.DxfName(ent),
                                 ["layer"] = ent.Layer,
                                 ["distance"] = Math.Round(dist, 2),
                                 ["center"] = new JArray(Math.Round(center.X, 2), Math.Round(center.Y, 2))
@@ -465,10 +511,8 @@ namespace AutoCADMCPPlugin.Commands
             Database db = doc.Database;
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                Handle h1 = new Handle(Convert.ToInt64(handle1));
-                Handle h2 = new Handle(Convert.ToInt64(handle2));
-                if (!db.TryGetObjectId(h1, out ObjectId id1)) return CommandResult.Fail($"Entity not found: {handle1}");
-                if (!db.TryGetObjectId(h2, out ObjectId id2)) return CommandResult.Fail($"Entity not found: {handle2}");
+                if (!Handles.TryResolve(db, handle1, out ObjectId id1)) return CommandResult.Fail($"Entity not found: {handle1}");
+                if (!Handles.TryResolve(db, handle2, out ObjectId id2)) return CommandResult.Fail($"Entity not found: {handle2}");
 
                 Entity ent1 = tr.GetObject(id1, OpenMode.ForRead) as Entity;
                 Entity ent2 = tr.GetObject(id2, OpenMode.ForRead) as Entity;
@@ -541,10 +585,8 @@ namespace AutoCADMCPPlugin.Commands
             Database db = doc.Database;
             using (Transaction tr = db.TransactionManager.StartTransaction())
             {
-                Handle h1 = new Handle(Convert.ToInt64(handle1));
-                Handle h2 = new Handle(Convert.ToInt64(handle2));
-                if (!db.TryGetObjectId(h1, out ObjectId id1)) return CommandResult.Fail($"Entity not found: {handle1}");
-                if (!db.TryGetObjectId(h2, out ObjectId id2)) return CommandResult.Fail($"Entity not found: {handle2}");
+                if (!Handles.TryResolve(db, handle1, out ObjectId id1)) return CommandResult.Fail($"Entity not found: {handle1}");
+                if (!Handles.TryResolve(db, handle2, out ObjectId id2)) return CommandResult.Fail($"Entity not found: {handle2}");
 
                 Entity ent1 = tr.GetObject(id1, OpenMode.ForRead) as Entity;
                 Entity ent2 = tr.GetObject(id2, OpenMode.ForRead) as Entity;

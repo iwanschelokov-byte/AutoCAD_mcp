@@ -32,17 +32,66 @@ namespace AutoCADMCPPlugin.Core
         public const int DefaultPort = 8081;
         public const int DefaultHttpPort = 8082;
         public const string PluginName = "AutoCAD MCP Plugin";
+
+        // Upstream feature version.
         public const string Version = "1.3.0";
+
+        // Custom build tag for this fork. Bump this when you rebuild your own
+        // version so `system_status` and the load message identify it clearly.
+        // This build adds AutoCAD 2027 (.NET 10 / R26.0) support, an optional
+        // "inputs" array for execute_command (interactive command + all of its
+        // prompt responses sent as one string), document close/list commands,
+        // command-line diagnostics (read_command_line), crossing selection,
+        // robust entity type matching and paged entity listings. It also fixes
+        // create_block applying the base point twice (inserts landed at
+        // "insertion point - base point").
+        //
+        // 2027.5-custom additionally rewrites plot_to_pdf on the PlottingServices
+        // publish engine (the old one sent "._-EXPORTPDF", which is not a
+        // command-line command, and reported success without writing a file),
+        // adds plot_devices for canonical media names, returns entity handles in
+        // hexadecimal so they match the properties palette and (handent "..."),
+        // and makes drawing_close report whether anything was actually discarded.
+        //
+        // 2027.6-custom breaks the paper=auto tie between the portrait and the
+        // landscape copy of a sheet in favour of the one that needs no rotation,
+        // and makes plot_devices echo the arguments it received and fall back to
+        // the default PDF driver when none is named.
+        //
+        // 2027.7-custom takes plot_devices out of application context: reading a
+        // device's media list has to apply every sheet to a PlotSettings before
+        // it can read the size back, which walks the same machinery a real plot
+        // does, so it now runs under a document lock and refuses to start while
+        // a plot is in progress. Both plotting commands also accept "plotter" as
+        // a synonym for "device" in the plugin itself, and say so when neither
+        // arrives.
+        //
+        // 2027.8-custom fixes a crash in that change. plot_devices listed the
+        // devices and style tables before checking that a drawing was open, on
+        // the assumption that a plain list of driver names could not need one.
+        // It does: those lists come from PlotSettingsValidator.Current, which is
+        // current *for the active document*, and calling into it with no
+        // document faults in unmanaged code and terminates AutoCAD - not an
+        // exception, so no managed catch can intercept it. The active-document
+        // check is now the first statement of the command, and the whole read
+        // runs under one document lock.
+        public const string Build = "2027.8-custom";
 
         public void Initialize()
         {
+            // Start recording command activity immediately: execute_command is
+            // asynchronous, so this log is the only way to report back what a
+            // queued command actually did.
+            CommandTracker.Install();
+
             Editor ed = Application.DocumentManager.MdiActiveDocument?.Editor;
-            ed?.WriteMessage($"\n[MCP] {PluginName} v{Version} loaded.");
+            ed?.WriteMessage($"\n[MCP] {PluginName} v{Version} (build {Build}) loaded.");
             ed?.WriteMessage("\n[MCP] Use MCPSTART to start the server, MCPSTOP to stop it.");
         }
 
         public void Terminate()
         {
+            CommandTracker.Uninstall();
             StopServers();
         }
 

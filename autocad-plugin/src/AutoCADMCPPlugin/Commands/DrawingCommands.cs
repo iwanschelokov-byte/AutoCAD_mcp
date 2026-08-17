@@ -3,6 +3,7 @@ using System.IO;
 using Newtonsoft.Json.Linq;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
+using AutoCADMCPPlugin.Core;
 using AutoCADMCPPlugin.Models;
 using Application = Autodesk.AutoCAD.ApplicationServices.Application;
 using static AutoCADMCPPlugin.Commands.EntityHelper;
@@ -50,13 +51,45 @@ namespace AutoCADMCPPlugin.Commands
             if (!File.Exists(path))
                 return CommandResult.Fail($"File not found: {path}");
 
-            Document doc = Application.DocumentManager.Open(path, false);
+            bool readOnly = parameters["read_only"]?.Value<bool>() ?? false;
+
+            // If the drawing is already open, activate it instead of calling
+            // Open() again. AutoCAD refuses to open a file it already holds a
+            // lock on, so the old behaviour turned a harmless repeat call into
+            // a hard error (eFileSharingViolation).
+            Document existing = DocumentHelper.FindOpen(path);
+            if (existing != null)
+            {
+                try { Application.DocumentManager.MdiActiveDocument = existing; }
+                catch { /* activation is best effort */ }
+
+                return CommandResult.Ok(new JObject
+                {
+                    ["document"] = existing.Name,
+                    ["path"] = SafeFilename(existing) ?? path,
+                    ["already_open"] = true,
+                    ["message"] = "Drawing was already open; it is now the active drawing"
+                });
+            }
+
+            Document doc = Application.DocumentManager.Open(path, readOnly);
+            try { Application.DocumentManager.MdiActiveDocument = doc; }
+            catch { }
+
             return CommandResult.Ok(new JObject
             {
                 ["document"] = doc.Name,
-                ["path"] = path,
+                ["path"] = SafeFilename(doc) ?? path,
+                ["already_open"] = false,
+                ["read_only"] = readOnly,
                 ["message"] = "Drawing opened"
             });
+        }
+
+        private static string SafeFilename(Document d)
+        {
+            try { return d.Database?.Filename; }
+            catch { return null; }
         }
     }
 
@@ -71,21 +104,58 @@ namespace AutoCADMCPPlugin.Commands
                 return CommandResult.Fail("No active document");
 
             string savePath = parameters["path"]?.ToString();
+            string mode = (parameters["mode"]?.ToString() ?? "copy").Trim().ToLowerInvariant();
 
             Database db = doc.Database;
             using (LockDoc())
             {
                 if (!string.IsNullOrEmpty(savePath))
                 {
+                    if (mode != "copy" && mode != "saveas")
+                        return CommandResult.Fail($"Unknown mode '{mode}'. Use \"copy\" (write a copy, keep editing the current file) or \"saveas\" (switch the editing session to the new file).");
+
                     string dir = Path.GetDirectoryName(savePath);
                     if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
                         Directory.CreateDirectory(dir);
+
+                    if (mode == "saveas")
+                    {
+                        // db.SaveAs() writes the file but leaves the editing
+                        // session pointing at the old one. A real Save As has to
+                        // go through the SAVEAS command, with FILEDIA suppressed
+                        // so no dialog appears.
+                        string quoted = savePath.IndexOf(' ') >= 0 ? "\"" + savePath + "\"" : savePath;
+                        object oldFiledia = Application.GetSystemVariable("FILEDIA");
+                        string overwrite = File.Exists(savePath) ? "_Y\n" : "";
+
+                        string script = "_.FILEDIA 0\n_.SAVEAS\n\n" + quoted + "\n" + overwrite
+                                      + "_.FILEDIA " + Convert.ToInt32(oldFiledia) + "\n";
+
+                        long since = CommandTracker.Record("SAVEAS", "queued", doc.Name, savePath);
+                        doc.SendStringToExecute(script, true, false, false);
+
+                        return CommandResult.Ok(new JObject
+                        {
+                            ["path"] = savePath,
+                            ["previous_path"] = db.Filename,
+                            ["mode"] = "saveas",
+                            ["queued"] = true,
+                            ["since"] = since,
+                            ["message"] = $"Save As queued: the drawing will become {savePath}. " +
+                                          "Confirm with drawing_info or read_command_line."
+                        });
+                    }
 
                     db.SaveAs(savePath, DwgVersion.Current);
                     return CommandResult.Ok(new JObject
                     {
                         ["path"] = savePath,
-                        ["message"] = $"Drawing saved to {savePath}"
+                        ["mode"] = "copy",
+                        ["active_path"] = db.Filename,
+                        ["message"] = $"A copy of the drawing was written to {savePath}. " +
+                                      "The editing session still points at " +
+                                      (string.IsNullOrEmpty(db.Filename) ? "an unsaved drawing" : db.Filename) +
+                                      "; pass mode=\"saveas\" to switch it."
                     });
                 }
                 else

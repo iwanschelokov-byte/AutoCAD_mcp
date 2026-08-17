@@ -6,9 +6,18 @@ Communicates with the AutoCAD .NET plugin via TCP socket using JSON-RPC 2.0.
 
 Architecture:
     Claude (MCP Client) -> stdio -> This Server -> TCP socket -> AutoCAD Plugin -> AutoCAD API
+
+Handles:
+    Every `handle` in and out of these tools is the hexadecimal entity handle,
+    the same string the properties palette, the LIST command, DXF group 5 and
+    AutoLISP's (handent "...") use - e.g. "97B176". Handles emitted by older
+    builds of this plugin were decimal ("9941366") and are still accepted on
+    input, but they are no longer produced.
 """
 
 import os
+import json
+import asyncio
 import logging
 from mcp.server.fastmcp import FastMCP
 from autocad_client import get_client
@@ -26,12 +35,26 @@ mcp = FastMCP("AutoCAD MCP Server")
 # Helper
 # =============================================================================
 
+async def _raw(method: str, params: dict | None = None):
+    """Send a command to AutoCAD and return the decoded result object."""
+    client = await get_client(HOST, PORT)
+    return await client.send_command(method, params)
+
+
 async def _call(method: str, params: dict | None = None) -> str:
     """Send a command to AutoCAD and return the result as formatted text."""
-    client = await get_client(HOST, PORT)
-    result = await client.send_command(method, params)
-    import json
-    return json.dumps(result, indent=2)
+    return json.dumps(await _raw(method, params), indent=2)
+
+
+def _field(result, name):
+    """Read a field from a plugin result, whether or not it is wrapped in 'data'."""
+    if isinstance(result, dict):
+        if name in result:
+            return result[name]
+        data = result.get("data")
+        if isinstance(data, dict):
+            return data.get(name)
+    return None
 
 
 # =============================================================================
@@ -63,9 +86,62 @@ async def get_system_variable(name: str) -> str:
 
 
 @mcp.tool()
-async def execute_command(command: str) -> str:
-    """Execute a raw AutoCAD command string (e.g., 'ZOOM E', 'PURGE'). Use for commands without a dedicated tool."""
-    return await _call("execute_command", {"command": command})
+async def execute_command(
+    command: str,
+    inputs: list[str] | None = None,
+    check: bool = True,
+    wait: float = 0.5,
+) -> str:
+    """Execute a raw AutoCAD command, optionally with all of its interactive inputs.
+
+    The command and every item of `inputs` are joined into ONE space-separated
+    string and sent to AutoCAD in a single call. Interactive / multi-step
+    commands MUST be passed this way (command + all prompt responses together);
+    splitting them across several execute_command calls does not work, because
+    AutoCAD cancels a command that is still awaiting input when the next string
+    is queued.
+
+    The command runs asynchronously, so the send itself cannot report success.
+    With check=True (default) this tool waits `wait` seconds and then reads the
+    command log back, so the answer contains what AutoCAD actually did — an
+    unknown command or a rejected input shows up under "outcome" instead of
+    failing silently. Set check=False for fire-and-forget.
+
+    Examples:
+        execute_command("ZOOM E")
+        execute_command("_.CIRCLE", ["100,100", "40"])
+        execute_command("_.POLYGON", ["6", "400,250", "_I", "60"])
+    """
+    params: dict = {"command": command}
+    if inputs:
+        params["inputs"] = [str(i) for i in inputs]
+
+    sent = await _raw("execute_command", params)
+    if not check:
+        return json.dumps(sent, indent=2)
+
+    since = _field(sent, "since") or 0
+    if wait > 0:
+        await asyncio.sleep(min(wait, 10.0))
+
+    try:
+        outcome = await _raw("read_command_line", {"since": since, "limit": 20})
+    except Exception as exc:  # the plugin may predate read_command_line
+        outcome = {"error": f"could not read command log: {exc}"}
+
+    return json.dumps({"sent": sent, "outcome": outcome}, indent=2)
+
+
+@mcp.tool()
+async def read_command_line(since: int = 0, limit: int = 20) -> str:
+    """Read AutoCAD's recent command activity and the last command-line prompt.
+
+    Pass the "since" value returned by execute_command to see exactly what that
+    call produced: which commands started, ended, failed or were cancelled, plus
+    the last line AutoCAD echoed (where messages like "Unknown command" appear).
+    Call with since=0 for the whole recent history.
+    """
+    return await _call("read_command_line", {"since": since, "limit": limit})
 
 
 # =============================================================================
@@ -79,17 +155,30 @@ async def drawing_new(template: str = "") -> str:
 
 
 @mcp.tool()
-async def drawing_open(path: str) -> str:
-    """Open an existing .dwg file. Provide the full file path."""
-    return await _call("drawing_open", {"path": path})
+async def drawing_open(path: str, read_only: bool = False) -> str:
+    """Open an existing .dwg file and make it the active drawing.
+
+    If the file is already open it is simply activated (AutoCAD cannot open a
+    file it already holds a lock on); the answer then says already_open=true.
+    """
+    return await _call("drawing_open", {"path": path, "read_only": read_only})
 
 
 @mcp.tool()
-async def drawing_save(path: str = "") -> str:
-    """Save the current drawing. Optionally provide a path for Save As."""
+async def drawing_save(path: str = "", mode: str = "copy") -> str:
+    """Save the current drawing.
+
+    With no path: saves in place (QSAVE).
+    With a path, `mode` decides what "save as" means:
+      - "copy" (default): writes the file, but the editing session keeps
+        pointing at the original drawing.
+      - "saveas": switches the editing session to the new file, like the
+        SAVEAS command in the UI.
+    """
     params = {}
     if path:
         params["path"] = path
+        params["mode"] = mode
     return await _call("drawing_save", params)
 
 
@@ -97,6 +186,44 @@ async def drawing_save(path: str = "") -> str:
 async def drawing_info() -> str:
     """Get info about the current drawing: name, path, entity count, layers."""
     return await _call("drawing_info")
+
+
+@mcp.tool()
+async def drawing_list() -> str:
+    """List every drawing currently open in AutoCAD, marking the active one."""
+    return await _call("drawing_list")
+
+
+@mcp.tool()
+async def drawing_close(path: str = "", save: bool = False) -> str:
+    """Close a drawing. Closes the active drawing unless `path` names another one.
+
+    save defaults to False: the drawing is closed and unsaved changes are
+    DISCARDED. Pass save=True to write the file first. Closing is what releases
+    AutoCAD's lock on the .dwg, so do it before another tool needs the file.
+
+    The result carries a `status` saying which of those actually happened -
+    "saved", "closed_unchanged" (there was nothing to save), "changes_discarded"
+    (there was, and it is gone) or "closed" (the drawing was not the active one,
+    so DBMOD could not be read and no claim is made either way).
+    """
+    params: dict = {"save": save}
+    if path:
+        params["path"] = path
+    return await _call("drawing_close", params)
+
+
+@mcp.tool()
+async def close_all(save: bool = False, keep: str = "") -> str:
+    """Close every open drawing. `keep` optionally names one to leave open.
+
+    save defaults to False — unsaved changes in every closed drawing are
+    DISCARDED.
+    """
+    params: dict = {"save": save}
+    if keep:
+        params["keep"] = keep
+    return await _call("close_all", params)
 
 
 # =============================================================================
@@ -280,19 +407,49 @@ async def bulk_create(entities: list[dict]) -> str:
 async def list_entities(
     layer: str = "",
     type: str = "",
-    limit: int = 500
+    limit: int = 500,
+    offset: int = 0,
+    detailed: bool = False,
+    min_point: list[float] | None = None,
+    max_point: list[float] | None = None,
+    mode: str = "crossing",
 ) -> str:
-    """List entities in model space. Filter by layer name and/or entity type (Line, Circle, etc.)."""
-    params = {"limit": limit}
+    """List entities in model space, with filtering and paging.
+
+    `type` accepts any spelling of the type: "BlockReference",
+    "AcDbBlockReference", "INSERT" or the alias "block" all work, and several
+    can be given comma-separated ("Line,Arc,LWPOLYLINE").
+
+    Supply min_point and max_point to list only a region — "crossing" (default)
+    includes anything the box touches, "window" only what is fully inside.
+
+    The answer carries `total` and `truncated`, so you can tell "that is all of
+    them" from "ask for the next page with offset".
+    """
+    params: dict = {"limit": limit, "offset": offset, "detailed": detailed}
     if layer: params["layer"] = layer
     if type: params["type"] = type
+    if min_point and max_point:
+        params["min_point"] = min_point
+        params["max_point"] = max_point
+        params["mode"] = mode
     return await _call("list_entities", params)
 
 
 @mcp.tool()
 async def get_entity(handle: str) -> str:
-    """Get detailed info about a specific entity by its handle ID."""
+    """Get detailed info about a specific entity by its handle.
+
+    The handle is hexadecimal, as AutoCAD shows it ("97B176"), so it can be
+    pasted straight into (handent "97B176") or a DXF filter.
+    """
     return await _call("get_entity", {"handle": handle})
+
+
+@mcp.tool()
+async def get_entities(handles: list[str], detailed: bool = True) -> str:
+    """Get info about several entities at once, by handle. One call instead of N."""
+    return await _call("get_entities", {"handles": [str(h) for h in handles], "detailed": detailed})
 
 
 @mcp.tool()
@@ -472,10 +629,34 @@ async def get_bounding_box(handle: str) -> str:
 async def select_by_window(
     min_point: list[float],
     max_point: list[float],
-    limit: int = 500
+    limit: int = 500,
+    mode: str = "window",
+    layer: str = "",
+    type: str = "",
+    offset: int = 0,
+    detailed: bool = False,
 ) -> str:
-    """Find all entities fully inside a rectangular window. Returns handles."""
-    return await _call("select_by_window", {"min_point": min_point, "max_point": max_point, "limit": limit})
+    """Find entities in a rectangular region.
+
+    mode="window" (default) returns only entities fully inside the box;
+    mode="crossing" also returns anything the box touches — use it when picking
+    a title block or a sheet region, whose entities stick out past the frame.
+
+    Optional layer/type filters narrow the result; `type` accepts "INSERT",
+    "AcDbBlockReference", "BlockReference" or "block" alike. The answer carries
+    `total` and `truncated` so a cut-off list is never mistaken for a complete one.
+    """
+    params: dict = {
+        "min_point": min_point,
+        "max_point": max_point,
+        "limit": limit,
+        "offset": offset,
+        "mode": mode,
+        "detailed": detailed,
+    }
+    if layer: params["layer"] = layer
+    if type: params["type"] = type
+    return await _call("select_by_window", params)
 
 
 @mcp.tool()
@@ -484,14 +665,25 @@ async def select_by_properties(
     type: str = "",
     color: int = -1,
     linetype: str = "",
-    limit: int = 500
+    limit: int = 500,
+    offset: int = 0,
+    detailed: bool = False,
+    block_name: str = "",
 ) -> str:
-    """Find entities matching property filters (AND logic). Returns handles with basic info."""
-    params: dict = {"limit": limit}
+    """Find entities matching property filters (AND logic).
+
+    `type` accepts the .NET name ("BlockReference"), the AutoCAD class name
+    ("AcDbBlockReference"), the DXF name ("INSERT") or an alias ("block",
+    "text", "anytext", "pline", "dimension", "curve"), and a comma-separated
+    list of any of those. `block_name` further restricts block references to
+    one block definition.
+    """
+    params: dict = {"limit": limit, "offset": offset, "detailed": detailed}
     if layer: params["layer"] = layer
     if type: params["type"] = type
     if color >= 0: params["color"] = color
     if linetype: params["linetype"] = linetype
+    if block_name: params["block_name"] = block_name
     return await _call("select_by_properties", params)
 
 
@@ -861,10 +1053,303 @@ async def set_units(
     return await _call("set_units", params)
 
 
+# =============================================================================
+# Plotting
+# =============================================================================
+
+_PT_PER_MM = 72.0 / 25.4
+
+
+def _trim_pdf_to_size(path: str, need_w: float, need_h: float, tol: float = 0.1) -> dict:
+    """Crop every page of `path` down to need_w x need_h millimetres, centred.
+
+    AutoCAD can only plot onto a paper size its driver defines, so a
+    non-standard sheet (840x594, 297x630) has to be plotted 1:1 centred on the
+    nearest larger sheet and the surplus removed afterwards. That is what this
+    does: it rewrites the PDF MediaBox to a box of exactly the requested size,
+    concentric with the page that came out of the driver, and drops the other
+    boxes so no viewer falls back to them.
+
+    The page size is measured from the file rather than taken from the plot
+    report, because PDF drivers quantize the sheet: "DWG To PDF.pc3" lands on a
+    0.0423 mm grid, so a nominal 841x594 A1 arrives as 841.02 x 594.08.
+
+    Returns a dict that is merged into the plot result. It always contains
+    `trimmed`; on failure it also contains `trim_error` with the reason, and
+    never raises - a PDF that could not be trimmed is still a valid plot.
+    """
+    try:
+        import pikepdf
+    except ImportError:
+        import sys
+        return {
+            "trimmed": False,
+            "trim_error": (
+                "pikepdf is not installed for the Python running this MCP "
+                "server (" + sys.executable + "), so the page was left at the "
+                "printer sheet size. Install it with: \"" + sys.executable +
+                "\" -m pip install pikepdf   - then restart the MCP host. The "
+                "plot itself is correct and centred on the sheet, so meanwhile "
+                "it can be cropped by hand to the `trim_target_mm` below."
+            ),
+            "trim_target_mm": [round(need_w, 2), round(need_h, 2)],
+        }
+
+    tmp = path + ".trim.tmp"
+    try:
+        with pikepdf.open(path) as pdf:
+            pages = 0
+            box_mm = None
+            size_mm = None
+            for page in pdf.pages:
+                mb = [float(v) for v in page.mediabox]
+                x0, y0 = min(mb[0], mb[2]), min(mb[1], mb[3])
+                x1, y1 = max(mb[0], mb[2]), max(mb[1], mb[3])
+                pw, ph = (x1 - x0) / _PT_PER_MM, (y1 - y0) / _PT_PER_MM
+
+                # The driver may have rotated the sheet, so try both ways round
+                # and keep whichever actually fits inside the page.
+                fits = [(w, h) for w, h in ((need_w, need_h), (need_h, need_w))
+                        if w <= pw + tol and h <= ph + tol]
+                if not fits:
+                    return {
+                        "trimmed": False,
+                        "trim_error": (
+                            "the target %.2f x %.2f mm does not fit inside the "
+                            "%.2f x %.2f mm page, so nothing was cropped - the "
+                            "plot may have been scaled or rotated unexpectedly"
+                            % (need_w, need_h, pw, ph)
+                        ),
+                        "trim_target_mm": [round(need_w, 2), round(need_h, 2)],
+                    }
+                tw, th = min(fits, key=lambda wh: (pw - wh[0]) + (ph - wh[1]))
+
+                if (pw - tw) <= tol and (ph - th) <= tol:
+                    return {
+                        "trimmed": False,
+                        "trim_reason": (
+                            "the page is already %.2f x %.2f mm, within %.2f mm "
+                            "of the target - nothing to crop" % (pw, ph, tol)
+                        ),
+                        "trimmed_size_mm": [round(pw, 2), round(ph, 2)],
+                    }
+
+                nx0 = x0 + (x1 - x0 - tw * _PT_PER_MM) / 2.0
+                ny0 = y0 + (y1 - y0 - th * _PT_PER_MM) / 2.0
+                box = [nx0, ny0, nx0 + tw * _PT_PER_MM, ny0 + th * _PT_PER_MM]
+                page.mediabox = box
+                # A leftover CropBox at the old size would win in most viewers,
+                # and the other three would misreport the trimmed sheet.
+                for key in ("/CropBox", "/TrimBox", "/ArtBox", "/BleedBox"):
+                    if key in page:
+                        del page[key]
+                pages += 1
+                if box_mm is None:
+                    box_mm = [round(v / _PT_PER_MM, 2) for v in box]
+                    size_mm = [round(tw, 2), round(th, 2)]
+
+            if not pages:
+                return {"trimmed": False, "trim_error": "the PDF has no pages"}
+            pdf.save(tmp)
+        os.replace(tmp, path)
+        return {
+            "trimmed": True,
+            "trimmed_size_mm": size_mm,
+            "trim_box_mm": box_mm,
+            "trimmed_pages": pages,
+        }
+    except Exception as e:
+        try:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+        except OSError:
+            pass
+        return {
+            "trimmed": False,
+            "trim_error": "%s: %s - the plot itself is intact, only the crop "
+                          "failed" % (type(e).__name__, e),
+            "trim_target_mm": [round(need_w, 2), round(need_h, 2)],
+        }
+
+
+def _merge(result, extra: dict):
+    """Merge extra fields into a plugin result, next to the fields it returned."""
+    if isinstance(result, dict):
+        data = result.get("data")
+        (data if isinstance(data, dict) else result).update(extra)
+    return result
+
+
+def _restate_size(result, path: str) -> None:
+    """Replace a stale `file_size` (and the byte count inside `message`) with
+    the size the file has now. Called after the PDF is rewritten in place; a
+    file that cannot be stat-ed is left reporting what the plugin said."""
+    old_size = _field(result, "file_size")
+    try:
+        new_size = os.path.getsize(path)
+    except OSError:
+        return
+    if not isinstance(old_size, int) or new_size == old_size:
+        return
+    patch = {"file_size": new_size}
+    message = _field(result, "message")
+    if isinstance(message, str):
+        stale = f"{old_size:,}"
+        if stale in message:
+            patch["message"] = message.replace(stale, f"{new_size:,}")
+    _merge(result, patch)
+
+
 @mcp.tool()
-async def plot_to_pdf(output_path: str) -> str:
-    """Export current drawing to PDF file."""
-    return await _call("plot_to_pdf", {"output_path": output_path})
+async def plot_devices(device: str = "", plotter: str = "", filter: str = "") -> str:
+    """List plot devices, plot style tables, and a device's paper sizes in mm.
+
+    Canonical paper names are not guessable - the A1 sheet a localized AutoCAD
+    shows as "ISO A1 (841.00 x 594.00 mm)" is called
+    "ISO_full_bleed_A1_(841.00_x_594.00_MM)" in the API. Pass `device` (e.g.
+    "DWG To PDF.pc3") to get its media list with sheet size, printable area and
+    margins in millimetres, so plot_to_pdf(paper=...) can be given a name that
+    exists. `filter` narrows the media list by substring, e.g. "A1".
+
+    `plotter` is an accepted synonym for `device`. Some MCP hosts route calls
+    through a bridge that reserves the argument name "device" for itself and
+    consumes it before the tool ever sees it; on those hosts `device` silently
+    arrives empty and `plotter` is the way through. Pass one or the other -
+    `device` wins if both are given.
+
+    Called with no device, it lists the sheets of "DWG To PDF.pc3". The answer
+    always echoes `requested_device` and `requested_filter`, so a dropped
+    argument is visible rather than silently ignored.
+    """
+    dev = device or plotter
+    params: dict = {}
+    if dev: params["device"] = dev
+    # Forwarded as well as merged, so the plugin can echo it back honestly.
+    if plotter: params["plotter"] = plotter
+    if filter: params["filter"] = filter
+    return await _call("plot_devices", params)
+
+
+@mcp.tool()
+async def plot_to_pdf(
+    output_path: str,
+    device: str = "",
+    plotter: str = "",
+    paper: str = "",
+    style_table: str = "",
+    area: str = "",
+    window: list[float] = None,
+    scale: str = "",
+    offset: str = "",
+    orientation: str = "",
+    layout: str = "",
+    lineweights: bool = True,
+    overwrite: bool = True,
+    trim: bool = True,
+) -> str:
+    """Plot the drawing to PDF and wait for the file to be written.
+
+    Goes through the PlottingServices API rather than the command line, so it
+    reports the real outcome and the real file size instead of fire-and-forget.
+
+    output_path  Where to write. A relative path resolves next to the drawing.
+    device       Plot device, default "DWG To PDF.pc3". See plot_devices.
+    plotter      Synonym for `device`, for MCP hosts whose bridge reserves the
+                 argument name "device" and eats it before the tool sees it.
+                 `device` wins if both are given.
+    paper        Canonical or localized media name, or "auto" (default): the
+                 smallest sheet whose *printable* area fits the window at the
+                 requested scale, which is what picks full-bleed sheets over
+                 bordered ones when the frame reaches the paper edge.
+    style_table  Plot style table, default "monochrome.ctb"; "none" keeps
+                 whatever the layout already uses.
+    area         extents | window | display | layout | limits. Defaults to
+                 "window" when `window` is given, otherwise "extents".
+    window       [x1, y1, x2, y2] in drawing units - normally the sheet frame,
+                 which in these drawings is a closed LWPOLYLINE on Defpoints.
+    scale        "1=1" (default), "1:100", a number, or "fit".
+    offset       "center" (default) or "dx,dy" in millimetres.
+    orientation  "auto" (default), "portrait" or "landscape".
+    layout       Layout to plot; default the current one.
+    lineweights  Honour lineweights, default True.
+    overwrite    Replace an existing file, default True.
+    trim         Crop the finished page down to the plotted window, default
+                 True. Set False to keep the whole printer sheet.
+
+    The result reports the media actually used and its millimetre size.
+
+    AutoCAD can only plot onto a paper size the device defines, so a
+    non-standard sheet (840x594, 297x630) is plotted 1:1 centred on the nearest
+    larger sheet and the surplus is cropped afterwards, here in the MCP server,
+    using pikepdf. That crop needs `pikepdf` installed (it is in
+    requirements.txt) and only happens for a `window` plot at a fixed scale with
+    `offset` left at "center".
+
+    The answer always says what happened: `trimmed` true or false, with
+    `trimmed_size_mm` and `trim_box_mm` when it worked, and `trim_error` or
+    `trim_reason` with the text when it did not - a missing pikepdf, a page that
+    is already the right size, or a target that does not fit. It is never
+    swallowed, and a failed crop never invalidates the plot.
+    """
+    params: dict = {"output_path": output_path, "lineweights": lineweights,
+                    "overwrite": overwrite}
+    dev = device or plotter
+    if dev: params["device"] = dev
+    if plotter: params["plotter"] = plotter
+    if paper: params["paper"] = paper
+    if style_table: params["style_table"] = style_table
+    if area: params["area"] = area
+    if window: params["window"] = window
+    if scale: params["scale"] = scale
+    if layout: params["layout"] = layout
+    if orientation: params["orientation"] = orientation
+    if offset:
+        s = offset.strip()
+        if s.lower() in ("center", "centre"):
+            params["offset"] = "center"
+        else:
+            try:
+                dx, dy = (float(p) for p in s.replace(";", ",").split(",")[:2])
+            except ValueError:
+                return json.dumps({
+                    "success": False,
+                    "error": f"offset must be 'center' or 'dx,dy' in millimetres, got {offset!r}",
+                }, indent=2)
+            params["offset"] = [dx, dy]
+
+    result = await _raw("plot_to_pdf", params)
+
+    # Crop the surplus sheet away. Everything needed is in the plot report:
+    # `required_mm` is the window multiplied by the scale, i.e. the sheet the
+    # drawing actually asked for, and the plugin only fills it in for a window
+    # plot at a fixed scale.
+    if isinstance(result, dict) and _field(result, "success") is not False:
+        need = _field(result, "required_mm")
+        used = _field(result, "output_path") or output_path
+        where = _field(result, "offset")
+        if not trim:
+            _merge(result, {"trimmed": False,
+                            "trim_reason": "trim=false, the full printer sheet was kept"})
+        elif not (isinstance(need, (list, tuple)) and len(need) == 2):
+            _merge(result, {"trimmed": False,
+                            "trim_reason": "no target size to crop to - cropping "
+                                           "applies to a window plot at a fixed scale"})
+        elif where != "center":
+            _merge(result, {"trimmed": False,
+                            "trim_reason": "the plot is offset rather than centred, "
+                                           "so the surplus is not symmetric and was left alone"})
+        else:
+            trim_report = await asyncio.to_thread(
+                _trim_pdf_to_size, used, float(need[0]), float(need[1]))
+            _merge(result, trim_report)
+            if trim_report.get("trimmed"):
+                # The plugin measured the file before pikepdf rewrote it, so the
+                # size it reported is the size of the untrimmed sheet. Re-stat
+                # and correct both the field and the sentence built from it,
+                # otherwise the answer names a size the file no longer has.
+                _restate_size(result, used)
+
+    return json.dumps(result, indent=2)
 
 
 # =============================================================================

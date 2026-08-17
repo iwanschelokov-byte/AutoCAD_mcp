@@ -10,7 +10,7 @@ Claude (AI) ──MCP stdio──> Python MCP Server ──TCP socket──> C# 
 
 | Component | Language | Role |
 |-----------|----------|------|
-| **AutoCADMCPPlugin.dll** | C# (.NET 8) | Loads inside AutoCAD, exposes TCP socket server on localhost:8081 |
+| **AutoCADMCPPlugin.dll** | C# (.NET Framework 4.8 / .NET 8 / .NET 10) | Loads inside AutoCAD, exposes TCP socket server on localhost:8081 |
 | **mcp_server/server.py** | Python | Translates MCP tool calls into JSON-RPC 2.0 over TCP |
 | **Claude / Claude Code** | — | AI client that calls MCP tools |
 
@@ -149,9 +149,12 @@ In Claude Code or Claude Desktop:
 
 | AutoCAD Version | .NET Version | Change in .csproj |
 |----------------|-------------|-------------------|
-| 2025+ | .NET 8 | `net8.0-windows` (default) |
+| 2027 | .NET 10 | `net10.0-windows` + `AutoCAD.NET` 26.0.0 |
+| 2025–2026 | .NET 8 | `net8.0-windows` (default) |
 | 2024 | .NET Framework 4.8 | `net48` |
 | 2023 and below | .NET Framework 4.8 | `net48` + adjust NuGet versions |
+
+The `net48` and `net8.0-windows` targets are always built. The 2027 target is added only when AutoCAD 2027 is installed on the build machine, because it compiles against the `Newtonsoft.Json` that ships inside AutoCAD 2027 so the compile-time and run-time signatures match; on a machine without it the build produces the two older targets rather than failing on a reference it cannot resolve.
 
 For AutoCAD 2024 and below, switch the NuGet packages:
 ```xml

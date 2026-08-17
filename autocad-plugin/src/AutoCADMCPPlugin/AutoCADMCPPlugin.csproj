@@ -1,15 +1,28 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <!-- AutoCAD 2027 install folder (holds acmgd/accoremgd/Newtonsoft.Json).
+         Override on the command line if AutoCAD is installed elsewhere:
+         dotnet build ... -p:AutoCADPath2027="D:\Path\To\AutoCAD 2027" -->
+    <AutoCADPath2027 Condition="'$(AutoCADPath2027)' == ''">C:\Program Files\Autodesk\AutoCAD 2027</AutoCADPath2027>
+
     <!--
       Multi-target build:
-        net48          → AutoCAD 2022-2024 (.NET Framework 4.8)
-        net8.0-windows → AutoCAD 2025-2026 (.NET 8)
+        net48           → AutoCAD 2022-2024 (.NET Framework 4.8)
+        net8.0-windows  → AutoCAD 2025-2026 (.NET 8)
+        net10.0-windows → AutoCAD 2027 (.NET 10)
 
-      To build for just one, change TargetFrameworks to TargetFramework:
-        <TargetFramework>net48</TargetFramework>
+      The 2027 target compiles against the Newtonsoft.Json that ships inside
+      AutoCAD 2027 (see the Reference item below), so it is only added on
+      machines where that assembly is actually present. On a machine without
+      AutoCAD 2027 the build produces the two older targets instead of failing
+      on a reference it cannot resolve.
+
+      To build one target only:
+        dotnet build ... -p:TargetFrameworks=net10.0-windows
     -->
     <TargetFrameworks>net48;net8.0-windows</TargetFrameworks>
+    <TargetFrameworks Condition="Exists('$(AutoCADPath2027)\Newtonsoft.Json.dll')">net48;net8.0-windows;net10.0-windows</TargetFrameworks>
     <RootNamespace>AutoCADMCPPlugin</RootNamespace>
     <AssemblyName>AutoCADMCPPlugin</AssemblyName>
     <LangVersion>latest</LangVersion>
@@ -45,14 +58,43 @@
     <PackageReference Include="AutoCAD.NET.Model" Version="25.*" />
   </ItemGroup>
 
-  <!-- Shared dependencies -->
-  <ItemGroup>
+  <!-- ============================================================ -->
+  <!-- AutoCAD 2027 (.NET 10)                                       -->
+  <!-- NuGet version 26.x = AutoCAD 2027                            -->
+  <!-- ============================================================ -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+    <PackageReference Include="AutoCAD.NET" Version="26.*" />
+    <PackageReference Include="AutoCAD.NET.Core" Version="26.*" />
+    <PackageReference Include="AutoCAD.NET.Model" Version="26.*" />
+  </ItemGroup>
+
+  <!-- Newtonsoft.Json for net48 / net8 (AutoCAD 2022-2026) via NuGet -->
+  <ItemGroup Condition="'$(TargetFramework)' != 'net10.0-windows'">
     <PackageReference Include="Newtonsoft.Json" Version="13.0.*" />
+  </ItemGroup>
+
+  <!-- ============================================================ -->
+  <!-- Newtonsoft.Json for net10 (AutoCAD 2027)                     -->
+  <!-- AutoCAD 2027 ships its own Newtonsoft.Json and loads it into -->
+  <!-- the default context. Reference THAT exact assembly and do    -->
+  <!-- NOT copy our own, so compile-time and runtime signatures     -->
+  <!-- match (avoids "Method not found" MissingMethodException).    -->
+  <!-- ============================================================ -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(AutoCADPath2027)\Newtonsoft.Json.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
 
   <!-- System.Drawing.Common needed for .NET 8 (built-in for net48) -->
   <ItemGroup Condition="'$(TargetFramework)' == 'net8.0-windows'">
     <PackageReference Include="System.Drawing.Common" Version="8.0.*" />
+  </ItemGroup>
+
+  <!-- System.Drawing.Common for .NET 10 (AutoCAD 2027) -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+    <PackageReference Include="System.Drawing.Common" Version="9.0.*" />
   </ItemGroup>
 
   <!-- Ensure AutoCAD API assemblies are not copied to output (they live in AutoCAD's dir) -->
