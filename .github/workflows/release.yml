@@ -47,11 +47,19 @@ jobs:
 
       # build-all publishes the MCP server, so the tool-surface cross-check
       # (tools.json vs the registry and the server's own tools) can be enforced.
+      # One process per leg: assembly identity is per-process, not per-path, so
+      # verifying a second framework in the same session would hand back the
+      # first one. build-all was run with -IncludeNet10, so all three exist.
       - name: Verify the built assembly and tool surface
         shell: pwsh
         run: |
-          ./build/verify-assembly.ps1 -TargetFramework net48 -RequireServer
-          ./build/verify-assembly.ps1 -TargetFramework net8.0-windows -RequireServer
+          foreach ($tfm in 'net48', 'net8.0-windows', 'net10.0-windows') {
+            Write-Host "::group::verify-assembly $tfm"
+            pwsh -NoProfile -File ./build/verify-assembly.ps1 -TargetFramework $tfm -RequireServer
+            $code = $LASTEXITCODE
+            Write-Host '::endgroup::'
+            if ($code -ne 0) { throw "verify-assembly failed for $tfm" }
+          }
 
       - name: Server-tool and code-runner tests
         run: dotnet run -c Release --project tests/ServerToolTests --nologo

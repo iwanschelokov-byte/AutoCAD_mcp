@@ -40,9 +40,24 @@ jobs:
           dotnet build autocad-plugin/src/AutoCADMCP.Server/AutoCADMCP.Server.csproj
           -c Release --nologo
 
+      # Every leg that was built gets verified, not just net48: compiling proves
+      # the API calls type-check against that release's reference assemblies, not
+      # that the 182 commands register and classify correctly there.
+      #
+      # Each leg runs in its own process on purpose. Assembly identity is
+      # per-process rather than per-path, so loading a second target framework in
+      # one session hands back the first one and silently re-verifies it; the
+      # script now refuses rather than allowing that.
       - name: Verify registry, classification, JSON-RPC contract and tool surface
         shell: pwsh
-        run: ./build/verify-assembly.ps1 -RequireServer
+        run: |
+          foreach ($tfm in 'net48', 'net8.0-windows', 'net10.0-windows') {
+            Write-Host "::group::verify-assembly $tfm"
+            pwsh -NoProfile -File ./build/verify-assembly.ps1 -TargetFramework $tfm -RequireServer
+            $code = $LASTEXITCODE
+            Write-Host '::endgroup::'
+            if ($code -ne 0) { throw "verify-assembly failed for $tfm" }
+          }
 
       - name: Upload build output
         uses: actions/upload-artifact@v4
