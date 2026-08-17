@@ -33,6 +33,15 @@
 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.*" />
+
+    <!--
+      PdfSharp crops a plotted page down to the requested sheet size. It lives
+      here rather than in the plugin on purpose: the plugin is loaded into
+      acad.exe, where an extra assembly can shadow one AutoCAD already loaded
+      (the same trap AutoCAD 2027's bundled Newtonsoft.Json sets). This server is
+      a separate self-contained process, so a dependency costs nothing.
+    -->
+    <PackageReference Include="PdfSharp" Version="6.2.*" />
   </ItemGroup>
 
 </Project>

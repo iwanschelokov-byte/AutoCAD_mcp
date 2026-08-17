@@ -24,6 +24,13 @@
 .PARAMETER SkipBundle
     Compile only; do not stage the bundle folder.
 
+.PARAMETER SkipServer
+    Do not publish the MCP server executable.
+
+.PARAMETER IncludeAgent
+    Also publish the optional AutoCode agent to dist/agent. It needs Anthropic
+    credentials at run time, so it is not built by default.
+
 .PARAMETER Sign
     Sign the built DLLs using build/sign.ps1.
 
@@ -46,6 +53,10 @@ param(
 
     [switch]$SkipServer,
 
+    # The agent is a separate, optional server: it needs Anthropic credentials
+    # at run time and pulls in a scripting engine, so it is not built by default.
+    [switch]$IncludeAgent,
+
     [switch]$Sign
 )
 
@@ -55,6 +66,7 @@ $RepoRoot   = Split-Path -Parent $PSScriptRoot
 $ProjectDir = Join-Path $RepoRoot 'autocad-plugin\src\AutoCADMCPPlugin'
 $Project    = Join-Path $ProjectDir 'AutoCADMCPPlugin.csproj'
 $ServerProj = Join-Path $RepoRoot 'autocad-plugin\src\AutoCADMCP.Server\AutoCADMCP.Server.csproj'
+$AgentProj  = Join-Path $RepoRoot 'autocad-plugin\src\AutoCADMCP.Agent\AutoCADMCP.Agent.csproj'
 $BundleSrc  = Join-Path $RepoRoot 'autocad-plugin\config\AutoCADMCPPlugin.bundle'
 $DistDir    = Join-Path $RepoRoot 'autocad-plugin\dist'
 
@@ -129,19 +141,6 @@ $serverExe = $null
 if (-not $SkipServer -and (Test-Path $ServerProj)) {
     Write-Step 'Building MCP server'
 
-    # Schemas are generated from the Python server's typed signatures, so
-    # regenerate before publishing or the two surfaces can drift.
-    $gen = Join-Path $PSScriptRoot 'generate_tool_schemas.py'
-    if (Test-Path $gen) {
-        $py = Get-Command python -ErrorAction SilentlyContinue
-        if ($py) {
-            & python $gen | ForEach-Object { Write-Ok $_.Trim() }
-            if ($LASTEXITCODE -ne 0) { throw 'Tool schema generation failed.' }
-        } else {
-            Write-Warn 'python not found - reusing the committed tools.json.'
-        }
-    }
-
     $serverOut = Join-Path $DistDir 'server'
     & dotnet publish $ServerProj -c $Configuration -o $serverOut --nologo
     if ($LASTEXITCODE -ne 0) { throw "MCP server publish failed ($LASTEXITCODE)." }
@@ -151,6 +150,21 @@ if (-not $SkipServer -and (Test-Path $ServerProj)) {
         $size = [math]::Round((Get-Item $serverExe).Length / 1MB, 1)
         Write-Ok "autocad-mcp-server.exe ($size MB, self-contained)"
     }
+}
+
+# ---------------------------------------------------------------------------
+# AutoCode agent (optional second-stage server; -IncludeAgent to build it)
+# ---------------------------------------------------------------------------
+$agentExe = $null
+if ($IncludeAgent -and (Test-Path $AgentProj)) {
+    Write-Step 'Building AutoCode agent'
+
+    $agentOut = Join-Path $DistDir 'agent'
+    & dotnet publish $AgentProj -c $Configuration -o $agentOut --nologo
+    if ($LASTEXITCODE -ne 0) { throw "Agent publish failed ($LASTEXITCODE)." }
+
+    $agentExe = Join-Path $agentOut 'autocad-mcp-agent.exe'
+    if (Test-Path $agentExe) { Write-Ok 'autocad-mcp-agent.exe (needs an Anthropic API key)' }
 }
 
 # ---------------------------------------------------------------------------
@@ -166,6 +180,7 @@ if ($Sign) {
             & $signScript -Path (Join-Path $binRoot "$t\AutoCADMCPPlugin.dll")
         }
         if ($serverExe -and (Test-Path $serverExe)) { & $signScript -Path $serverExe }
+        if ($agentExe -and (Test-Path $agentExe)) { & $signScript -Path $agentExe }
         Write-Ok 'Signing complete.'
     }
 }
@@ -237,8 +252,11 @@ $ranges = @{
 
 Write-Step 'Summary'
 foreach ($t in $built) { Write-Ok ("{0,-16} {1}" -f $t, $ranges[$t]) }
+if ($agentExe -and (Test-Path $agentExe)) {
+    Write-Ok ("{0,-16} {1}" -f 'autocode agent', 'self-contained exe (needs an API key)')
+}
 if ($serverExe -and (Test-Path $serverExe)) {
-    Write-Ok ("{0,-16} {1}" -f 'mcp server', 'self-contained exe (no Python needed)')
+    Write-Ok ("{0,-16} {1}" -f 'mcp server', 'self-contained exe')
 }
 
 if (-not $SkipBundle) {

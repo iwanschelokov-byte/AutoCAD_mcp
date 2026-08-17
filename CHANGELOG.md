@@ -39,14 +39,30 @@ a real safety layer, typed errors, and AutoCAD 2021→2027 version coverage.
 ### Added — C# MCP server (Phase 2)
 
 - **`AutoCADMCP.Server`** — a hand-rolled MCP server over stdio, published as a
-  single self-contained ~65 MB exe. No Python needed on the end user's machine.
-- **Per-tool JSON schemas are generated, not hand-written.**
-  `build/generate_tool_schemas.py` parses the Python server's typed signatures
-  into `tools.json` (186 tools, 571 parameters, 239 required), embedded at build
-  time. The two servers therefore cannot drift, and CI fails if it goes stale.
+  single self-contained ~67 MB exe. Nothing to install on the end user's machine.
+- **The Python MCP server is retired; the repository is now entirely C#.**
+  `src/mcp_server/` is gone, along with the Python schema generator and the two
+  Python verification scripts. This removes the dual-implementation drift risk
+  and the Python runtime dependency in one step.
+- **Two tools are served by the server process rather than the plugin**, because
+  they need libraries that must not be loaded into `acad.exe` — AutoCAD ships its
+  own copies of common assemblies and a version clash there is unrecoverable:
+  - `create_table_from_excel` — `XlsxReader`, a dependency-free `.xlsx` reader
+    (shared and inline strings, number formats, date styles). The plugin receives
+    finished geometry through `bulk_create`.
+  - `plot_to_pdf` — the plugin plots; the server crops the `MediaBox` with
+    PdfSharp. Ported from pikepdf.
+  The port was verified against the Python original as an oracle: on a shared
+  fixture, 36 of 39 emitted entities were byte-identical. The 3 that differed
+  were dates, which now render as `2026-07-14` rather than `str(datetime)`'s
+  `2026-07-14 00:00:00` — an improvement, now asserted in the tests.
+- **`tools.json` is now committed source of truth** rather than generated output.
+  `build/verify-assembly.ps1` cross-checks it against the live command registry
+  and the server's own tool set, so it can neither omit a registered command nor
+  advertise one that nothing can serve. `autocad-mcp-server --list-tools` reports
+  that surface as JSON.
 - Graceful degradation: with AutoCAD down, `tools/call` returns an MCP tool error
   with an actionable message instead of failing the protocol.
-- The Python server is unchanged and still fully supported.
 
 ### Added — 102 new tools (73 → 186 after merging PR #4)
 
@@ -130,11 +146,15 @@ Four automated gates, none of which need AutoCAD installed:
 - `build/verify-mcp-server.ps1` (11 checks) — drives the C# server over real
   stdio: protocol negotiation, notification handling, tool schemas, and graceful
   degradation when the plugin is down.
-- `build/verify_tool_parity.py` (9 checks) — proves the C# and Python tool
-  surfaces agree, with no unregistered classes and no unexposed commands.
-- `tests/runtime_verify.py` — integration harness for a **live** AutoCAD; chains
+- `tests/ServerToolTests` (47 checks) — covers everything the plugin does not do
+  itself: the `.xlsx` reader, the PDF crop, the generated table geometry, and the
+  agent's code runner. Fixtures (a real workbook, a real PDF) are generated at
+  run time and a fake plugin answers on a real TCP socket, so nothing is checked
+  in and no AutoCAD is needed.
+- `tests/RuntimeVerify` — integration harness for a **live** AutoCAD; chains
   real entity handles through create → query → modify across every category and
   asserts the destructive gate both blocks and then permits a confirmed erase.
+  Ported from Python to C#.
 
 ### Not done (deliberately)
 
@@ -191,27 +211,33 @@ detail fields for Arc/Polyline/Spline/Ellipse/MText/BlockReference, and the
 
 ### Added — code execution and the AutoCode Agent (issue #5, parts 3 and 4)
 
-Both were initially deferred as security-posture decisions rather than fixes;
-both now ship **gated off by default**.
+Initially deferred as a security-posture decision rather than a fix; now ships
+**gated off by default**.
 
-- **`execute_python`** — runs Python in the MCP server process with a pre-wired
-  `call(method, params)`, for multi-step geometry that would otherwise cost
-  dozens of round-trips. Requires `AUTOCAD_MCP_ALLOW_EXEC=1`. The code is not
-  sandboxed, but it reaches AutoCAD only through the plugin's JSON-RPC port, so
-  read-only mode and destructive confirmation still apply to what it draws.
-- **`mcpagent` AutoCode Agent** (`src/mcpagent/`) — a separate MCP server that
-  turns a plain-language drawing request into generated AutoCAD code.
+- **AutoCode Agent** (`src/AutoCADMCP.Agent/`) — a separate MCP server that turns
+  a plain-language drawing request into generated AutoCAD code, for multi-step
+  geometry that would otherwise cost dozens of round-trips.
   `generate_drawing_code` returns a plan and the code without running it and
   needs no permission; `draw` also executes and requires
-  `AUTOCAD_AGENT_ALLOW_EXEC=1`. Its tool catalogue is built from the same
-  generated `tools.json` the C# server embeds, so a new plugin tool reaches the
-  agent with no edit — and the issue's hardcoded-relative-path concern does not
-  apply. Host and port are environment-configurable.
+  `AUTOCAD_AGENT_ALLOW_EXEC=1`. Generated code is not sandboxed, but it reaches
+  AutoCAD only through the plugin's JSON-RPC port, so read-only mode and
+  destructive confirmation still apply to what it draws. Its tool catalogue is
+  the same embedded `tools.json` the server uses, so a new plugin tool reaches
+  the agent with no edit — and the issue's hardcoded-relative-path concern does
+  not apply. Host and port are environment-configurable.
+
+  The generated language is **C#, executed through Roslyn scripting**. The
+  earlier standalone `execute_python` tool is gone: it existed only because the
+  MCP server was Python, and a C# server has no interpreter to offer. The agent
+  covers the same need, and shows the code before anything runs.
+
+  `CodeRunner` and the prompt builder are covered by `tests/ServerToolTests`,
+  which executes real generated-style C# against a fake plugin and asserts the
+  compile-error, plugin-error and runtime-exception paths.
 
   **Not verified against the live Claude API** — built without credentials on
-  the development machine. The request shape is confirmed valid (the SDK accepts
-  every parameter and the API rejects a dummy-key request at authentication
-  rather than as malformed), but no real generation has been run.
+  the development machine. The request shape compiles against the SDK and every
+  parameter is accepted, but no real generation has been run.
 
 ### Known gaps
 
@@ -219,7 +245,7 @@ both now ship **gated off by default**.
   locally** — installing the .NET 10 SDK failed with MSI `0x80070641` due to a
   pending file-rename operation (queued reboot). CI builds it. See STATUS.md 4.3.
 - Command bodies that call the AutoCAD API are **compile-verified only**. Run
-  `tests/runtime_verify.py` against a live AutoCAD to validate runtime behaviour.
+  `tests/RuntimeVerify` against a live AutoCAD to validate runtime behaviour.
 - The sheet set COM path is unverified against a real Sheet Set Manager.
 
 ## [1.0.0]

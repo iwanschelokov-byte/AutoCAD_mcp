@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!--
+      Integration harness: talks to the plugin's TCP JSON-RPC port against a
+      LIVE AutoCAD. Unlike ServerToolTests this cannot run in CI - it needs a
+      running session with MCPSTART issued.
+
+        dotnet run, with the project switch pointing at tests/RuntimeVerify.
+        Pass "all" as an argument to sweep every registered tool.
+    -->
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>runtime-verify</AssemblyName>
+    <RootNamespace>AutoCADMCP.RuntimeVerify</RootNamespace>
+
+    <!-- Matches the referenced server project, which publishes self-contained. -->
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishSingleFile>false</PublishSingleFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Uses the shipped PluginClient, so the transport under test is the one
+         the MCP server actually uses. -->
+    <ProjectReference Include="..\..\autocad-plugin\src\AutoCADMCP.Server\AutoCADMCP.Server.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -12,7 +12,7 @@
       * JSON-RPC framing, error codes, and both safety gates behave
 
     This is what CI runs. It cannot verify command bodies that call the AutoCAD
-    API - those need a live session via tests/runtime_verify.py.
+    API - those need a live session via tests/RuntimeVerify.
 
 .PARAMETER TargetFramework
     Which built leg to verify. Defaults to net48.
@@ -24,7 +24,11 @@
 param(
     [string]$TargetFramework = 'net48',
     [ValidateSet('Release', 'Debug')]
-    [string]$Configuration = 'Release'
+    [string]$Configuration = 'Release',
+
+    # Treat a missing MCP server as a failure rather than skipping the
+    # tool-surface checks. CI passes this so a skip can never mask a break.
+    [switch]$RequireServer
 )
 
 $ErrorActionPreference = 'Stop'
@@ -71,6 +75,15 @@ $resolver = [System.ResolveEventHandler]{
 
 $asm = [System.Reflection.Assembly]::LoadFrom($dll)
 
+# Assembly identity is per-process, not per-path: if another leg of the same
+# assembly was already loaded here, LoadFrom hands that one back instead and
+# every check below would silently re-verify the wrong binary. Verify one
+# framework per process.
+if ($asm.Location -ne (Resolve-Path $dll).Path) {
+    throw ("Loaded '$($asm.Location)' instead of '$dll'. Another target framework " +
+           'is already loaded in this process - run one framework per PowerShell session.')
+}
+
 $failures = New-Object System.Collections.Generic.List[string]
 function Check($name, $condition, $detail) {
     if ($condition) {
@@ -86,6 +99,20 @@ Write-Host ("  assembly: {0} v{1}" -f $asm.GetName().Name, $asm.GetName().Versio
 
 # --- Registry ---------------------------------------------------------------
 $reg = $asm.GetType('AutoCADMCPPlugin.Core.CommandRegistry')
+
+# Windows PowerShell runs on .NET Framework and cannot resolve the types in a
+# net8/net10 assembly, so those legs need PowerShell 7. Say so, rather than
+# failing later with a null-reference.
+if ($null -eq $reg) {
+    $hint = if ($PSVersionTable.PSEdition -eq 'Desktop' -and $TargetFramework -ne 'net48') {
+        "Verifying $TargetFramework needs PowerShell 7 (pwsh) - Windows PowerShell " +
+        'runs on .NET Framework and cannot load it. CI uses `shell: pwsh`.'
+    } else {
+        'The assembly loaded but CommandRegistry was not found in it.'
+    }
+    throw $hint
+}
+
 $methods = @($reg.GetMethod('GetAllMethods').Invoke($null, @()))
 $unique = ($methods | Sort-Object -Unique).Count
 
@@ -161,6 +188,51 @@ finally {
     $settings.GetProperty('ReadOnly').SetValue($null, $false)
 }
 
+# --- tools.json is the tool-surface contract --------------------------------
+# It used to be generated from the Python server's type hints. The Python server
+# is gone, so tools.json is now the committed source of truth and these checks
+# are what keep it honest: every registered command must be advertised, and
+# nothing may be advertised that neither the plugin nor the server can serve.
+# Ask the built server what it advertises and what it serves locally. Windows
+# PowerShell runs on .NET Framework and cannot reflect over the net8.0 server
+# assembly, so --list-tools is the supported way in - and it exercises the real
+# embedded resource rather than the file on disk.
+$serverExe = Get-ChildItem (Join-Path $RepoRoot 'autocad-plugin\src\AutoCADMCP.Server\bin') `
+                           -Recurse -Filter 'autocad-mcp-server.exe' -ErrorAction SilentlyContinue |
+             Sort-Object LastWriteTime -Descending | Select-Object -First 1
+
+if (-not $serverExe) {
+    if ($RequireServer) {
+        Check 'MCP server is built' $false 'required for the tool-surface checks'
+    } else {
+        Write-Host '  SKIP  tool-surface checks (server not built)' -ForegroundColor Yellow
+        Write-Host '        build it with: dotnet build -c Release autocad-plugin\src\AutoCADMCP.Server' -ForegroundColor Gray
+    }
+} else {
+    $surface = & $serverExe.FullName --list-tools 2>$null | ConvertFrom-Json
+    $advertised = @($surface.advertised)
+    $serverTools = @($surface.local)
+
+    Check 'server advertises an embedded catalogue' ($advertised.Count -gt 0) "$($advertised.Count) tools"
+    Check 'server-implemented tools discovered' ($serverTools.Count -gt 0) ($serverTools -join ', ')
+
+    $serveable = @($methods) + @($serverTools) | Sort-Object -Unique
+
+    $unadvertised = @($methods | Where-Object { $advertised -notcontains $_ })
+    Check 'every registered command is advertised' ($unadvertised.Count -eq 0) `
+          $(if ($unadvertised) { "missing from tools.json: $($unadvertised -join ', ')" } else { 'all present' })
+
+    # The bug this catches: advertising a tool that gets proxied to a plugin
+    # which has no such command, so the call fails with MethodNotFound.
+    $unserveable = @($advertised | Where-Object { $serveable -notcontains $_ })
+    Check 'nothing advertised that cannot be served' ($unserveable.Count -eq 0) `
+          $(if ($unserveable) { "no handler: $($unserveable -join ', ')" } else { 'all serveable' })
+
+    $dupes = @($advertised | Group-Object | Where-Object Count -gt 1 | ForEach-Object Name)
+    Check 'no duplicate entries in tools.json' ($dupes.Count -eq 0) `
+          $(if ($dupes) { $dupes -join ', ' } else { "$($advertised.Count) unique" })
+}
+
 # --- Result -----------------------------------------------------------------
 Write-Host ''
 if ($failures.Count -gt 0) {
@@ -168,5 +240,5 @@ if ($failures.Count -gt 0) {
     exit 1
 }
 Write-Host '  All assembly checks passed.' -ForegroundColor Green
-Write-Host '  (Command bodies that call the AutoCAD API need tests/runtime_verify.py.)' -ForegroundColor Gray
+Write-Host '  (Command bodies that call the AutoCAD API need tests/RuntimeVerify.)' -ForegroundColor Gray
 Write-Host ''

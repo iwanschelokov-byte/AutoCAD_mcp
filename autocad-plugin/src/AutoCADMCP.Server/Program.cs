@@ -19,6 +19,15 @@ public static class Program
             return 0;
         }
 
+        if (args.Contains("--list-tools"))
+        {
+            // Machine-readable tool surface, for build/verify-assembly.ps1. That
+            // script runs under Windows PowerShell, which cannot reflect over a
+            // net8.0 assembly, so it asks the server instead of reading its DLL.
+            PrintToolSurface();
+            return 0;
+        }
+
         string host = GetOption(args, "--host")
                       ?? Environment.GetEnvironmentVariable("AUTOCAD_MCP_HOST")
                       ?? "localhost";
@@ -73,6 +82,24 @@ public static class Program
         }
 
         return 0;
+    }
+
+    /// <summary>
+    /// Emit the tool surface as JSON on stdout: everything advertised to the
+    /// client, and the subset this process serves itself rather than proxying
+    /// to the plugin.
+    /// </summary>
+    private static void PrintToolSurface()
+    {
+        var advertised = new Newtonsoft.Json.Linq.JArray(
+            McpServer.LoadToolCatalogue().Select(t => t["name"]?.ToString() ?? ""));
+        var local = new Newtonsoft.Json.Linq.JArray(Tools.ServerTools.All.Keys);
+
+        Console.WriteLine(new Newtonsoft.Json.Linq.JObject
+        {
+            ["advertised"] = advertised,
+            ["local"] = local,
+        }.ToString(Newtonsoft.Json.Formatting.None));
     }
 
     private static string? GetOption(string[] args, string name)

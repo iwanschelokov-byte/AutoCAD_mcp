@@ -37,21 +37,29 @@ public sealed class McpServer
 
     public int ToolCount => _tools.Count;
 
-    /// <summary>
-    /// Tool definitions are generated from the Python server's typed signatures
-    /// and embedded at build time, so both servers expose the same surface.
-    /// </summary>
     private JArray LoadTools()
+    {
+        var tools = LoadToolCatalogue();
+        if (tools.Count == 0)
+            _log.WriteLine("[warn] tools.json resource not found; no tools will be advertised.");
+        return tools;
+    }
+
+    /// <summary>
+    /// The advertised tool surface, read from the embedded tools.json.
+    ///
+    /// tools.json is committed source of truth: every entry must resolve either
+    /// to a command in the plugin registry or to a <see cref="Tools.ServerTools"/>
+    /// entry served in this process. build/verify-assembly.ps1 enforces that via
+    /// --list-tools, which is why this is public and static.
+    /// </summary>
+    public static JArray LoadToolCatalogue()
     {
         var asm = Assembly.GetExecutingAssembly();
         string? resource = asm.GetManifestResourceNames()
                               .FirstOrDefault(n => n.EndsWith("tools.json", StringComparison.OrdinalIgnoreCase));
 
-        if (resource == null)
-        {
-            _log.WriteLine("[warn] tools.json resource not found; no tools will be advertised.");
-            return new JArray();
-        }
+        if (resource == null) return new JArray();
 
         using var stream = asm.GetManifestResourceStream(resource)!;
         using var reader = new StreamReader(stream);
@@ -156,6 +164,44 @@ public sealed class McpServer
             return Error(id, -32602, $"Unknown tool: {name}");
 
         var arguments = parameters?["arguments"] as JObject ?? new JObject();
+
+        // A few tools are implemented here rather than in the plugin, because they
+        // need work the plugin deliberately avoids (reading a spreadsheet,
+        // rewriting a PDF). They may still call the plugin themselves.
+        if (Tools.ServerTools.All.TryGetValue(name, out var local))
+        {
+            try
+            {
+                JObject localResult = await local.ExecuteAsync(arguments, _plugin, ct);
+                bool failed = localResult["success"]?.Type == JTokenType.Boolean
+                              && !localResult["success"]!.Value<bool>();
+
+                return Result(id, new JObject
+                {
+                    ["content"] = new JArray
+                    {
+                        new JObject
+                        {
+                            ["type"] = "text",
+                            ["text"] = localResult.ToString(Formatting.Indented),
+                        },
+                    },
+                    ["isError"] = failed,
+                });
+            }
+            catch (PluginUnavailableException ex)
+            {
+                return Result(id, ToolError(ex.Message));
+            }
+            catch (OperationCanceledException)
+            {
+                return Result(id, ToolError($"'{name}' was cancelled."));
+            }
+            catch (Exception ex)
+            {
+                return Result(id, ToolError($"'{name}' failed: {ex.GetType().Name}: {ex.Message}"));
+            }
+        }
 
         JObject pluginResponse;
         try

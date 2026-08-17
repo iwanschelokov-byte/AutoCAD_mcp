@@ -174,7 +174,7 @@ You can get a long way without launching AutoCAD: load the built DLL with an
 `CommandRegistry.GetAllMethods()` and `JsonRpcHandler.ProcessRequest()` directly.
 That exercises registration, classification, JSON-RPC framing, error codes and
 both safety gates. It does **not** exercise anything that touches a `Database` —
-those need a real AutoCAD session and `tests/runtime_verify.py`.
+those need a real AutoCAD session and `tests/RuntimeVerify`.
 
 ## Design decisions worth remembering
 
@@ -201,18 +201,29 @@ produces *dead code that still compiles*. The first time it ran it caught 18
 annotation commands that had been written, built, and were completely
 unreachable. Nothing else in the pipeline would have noticed.
 
-Its companion `build/verify_tool_parity.py` catches the same class of drift from
-the other side — a Python wrapper calling a method the plugin does not implement,
-or a registered command no AI client can reach (exactly how `measure_text` sat
-unused for a whole release).
+The same script catches that drift from the other side too: it cross-checks
+`tools.json` against the registry, so the catalogue can neither advertise a tool
+nothing implements nor omit a registered command no AI client could otherwise
+reach (exactly how `measure_text` sat unused for a whole release).
 
-### Generate the second copy, never hand-maintain it
+### Two implementations of one surface is a standing tax
 
-The C# server needs per-tool JSON schemas; the Python server already encodes the
-same information as type hints. Hand-writing 180 schemas would guarantee drift,
-so `build/generate_tool_schemas.py` derives them from the Python AST and CI fails
-if the generated file is stale. When two artifacts must agree, make one of them a
-build output.
+For a while the repo shipped two MCP servers — one Python, one C# — over the same
+tool set, with the C# schemas generated from the Python signatures to stop them
+drifting. The generator worked, but it made Python a build-time dependency of a
+C# project and left two code paths to keep honest for one interface.
+
+Retiring the Python server removed all of that. `tools.json` became committed
+source of truth, and one gate now checks it against the live registry plus the
+server's own tools. When two artifacts must agree, prefer deleting one over
+generating one; generate only when both genuinely have to exist.
+
+The two tools the Python server implemented itself moved into the C# server
+process rather than the plugin — the plugin loads inside `acad.exe`, where an
+extra assembly can shadow one AutoCAD already ships, so it stays dependency-free
+on purpose. Porting them, the old implementation made a good oracle: running both
+against one fixture put 36 of 39 emitted entities byte-identical and turned the
+3 differences into deliberate, asserted decisions.
 
 ### Stage a manifest that matches what you actually built
 

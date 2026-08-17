@@ -1,10 +1,10 @@
 # AutoCode Agent
 
 An MCP server that turns a drawing request into AutoCAD code. It asks Claude to
-write Python against the plugin's tool surface, then optionally runs it.
+write C# against the plugin's tool surface, then optionally runs it.
 
 This is a **second-stage** component and is entirely optional — the AutoCAD MCP
-plugin and its two servers work without it. Use it when you want a request like
+plugin and its server work without it. Use it when you want a request like
 *"lay out a 3-bay rack elevation with dimensions"* handled as one generated
 program rather than a few dozen individual tool calls.
 
@@ -14,6 +14,10 @@ A tool call is one round trip. Drawing anything with structure — a grid, a
 schedule, a repeated detail — is dozens of them, and the model has to hold the
 whole geometry in conversation while it makes them. Generating a short program
 instead means the loop runs locally at full speed and only the result comes back.
+
+It is a separate executable from `autocad-mcp-server` because it pulls in the
+Anthropic SDK and the Roslyn scripting engine, and most users want the plain
+tool bridge without either.
 
 ## Tools
 
@@ -29,20 +33,17 @@ then executes.
 
 ## Setup
 
-```bash
-pip install -r requirements.txt
+```
+dotnet build -c Release autocad-plugin/src/AutoCADMCP.Agent
 ```
 
 Credentials are resolved by the Anthropic SDK — set `ANTHROPIC_API_KEY`, or run
 `ant auth login` and let it use the stored profile. This server never reads or
 stores a key itself.
 
-Generate the tool catalogue if it does not exist yet (the agent reads the same
-`tools.json` the C# server embeds, so all three surfaces describe one tool set):
-
-```bash
-python ../../../build/generate_tool_schemas.py
-```
+The tool catalogue is embedded at build time from the same `tools.json` the MCP
+server uses, so both surfaces describe one tool set and adding a tool to the
+plugin makes it available here with no edit.
 
 Then add it to your MCP client alongside the AutoCAD server:
 
@@ -50,8 +51,7 @@ Then add it to your MCP client alongside the AutoCAD server:
 {
   "mcpServers": {
     "autocad-agent": {
-      "command": "python",
-      "args": ["autocad-plugin/src/mcpagent/agent_server.py"],
+      "command": "C:\\path\\to\\autocad-mcp-agent.exe",
       "env": {
         "AUTOCAD_AGENT_ALLOW_EXEC": "1"
       }
@@ -60,10 +60,13 @@ Then add it to your MCP client alongside the AutoCAD server:
 }
 ```
 
+`autocad-mcp-agent --check` prints what is configured and reachable without
+speaking MCP, which is the quickest way to confirm an install.
+
 ## Execution is off by default
 
 `draw` refuses unless `AUTOCAD_AGENT_ALLOW_EXEC=1`. This is deliberate:
-installing an AutoCAD plugin should not hand anyone a Python evaluator.
+installing an AutoCAD plugin should not hand anyone a code evaluator.
 
 What the flag does and does not protect:
 
@@ -90,28 +93,41 @@ agent would do.
 usually fine for straightforward geometry; keep `high` for layouts that need real
 spatial reasoning.
 
+## What the generated code sees
+
+`CodeRunner` runs the script with one method pre-bound:
+
+```csharp
+JObject Call(string method, object? parameters = null)
+```
+
+`System`, `System.Collections.Generic`, `System.Linq`, `System.Text`, the
+Newtonsoft JSON namespaces, and `using static System.Math` are all imported, and
+a `Result` property is available for the script's answer. A plugin error throws
+`PluginException`, so generated code does not need to check a status field.
+
 ## How the prompt is built
 
-`code_prompts.py` assembles the system prompt from three parts:
+`Prompts.cs` assembles the system prompt from three parts:
 
-1. **The contract** — the single `call(method, params)` function the generated
-   code gets, and what is pre-imported.
+1. **The contract** — the single `Call` method the generated code gets, and what
+   is pre-imported.
 2. **The tool catalogue** — every tool with its full parameter signature, read
-   from the generated `tools.json`. About 7.5k tokens, and cached, so repeat
+   from the embedded `tools.json`. About 7.5k tokens, and cached, so repeat
    requests only pay for the request itself.
 3. **The traps** — behaviours that reliably catch callers out: handle
    round-tripping, parameter aliases, which tools need `__confirm`, that
    `execute_command` is asynchronous, that `measure_between` can return a null
    centre. Each one is a real behaviour of this plugin, not a guess.
 
-Because the catalogue is generated rather than hand-written, adding a tool to the
-plugin makes it available to the agent with no edit here.
-
 ## Status
 
-The code-generation path is **unverified against the live API** — it was built
+`CodeRunner` and the prompt builder are covered by `tests/ServerToolTests`,
+which executes real generated-style C# against a fake plugin on a real socket
+and checks the compile-error, plugin-error, and runtime-exception paths.
+
+The **code-generation path is unverified against the live API** — it was built
 and shape-checked without credentials on the development machine. The request
-shape is confirmed valid (the SDK accepts every parameter, and the API rejects a
-dummy-key request at authentication rather than as a malformed request), but no
-real generation has been run. Expect to iterate on the prompt when you first use
-it in anger.
+shape compiles against the SDK and every parameter is accepted, but no real
+generation has been run. Expect to iterate on the prompt when you first use it
+in anger.

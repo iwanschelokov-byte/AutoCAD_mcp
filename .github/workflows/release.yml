@@ -45,14 +45,16 @@ jobs:
         shell: pwsh
         run: ./build/build-all.ps1 -Configuration Release -IncludeNet10
 
-      - name: Verify the built assembly
+      # build-all publishes the MCP server, so the tool-surface cross-check
+      # (tools.json vs the registry and the server's own tools) can be enforced.
+      - name: Verify the built assembly and tool surface
         shell: pwsh
         run: |
-          ./build/verify-assembly.ps1 -TargetFramework net48
-          ./build/verify-assembly.ps1 -TargetFramework net8.0-windows
+          ./build/verify-assembly.ps1 -TargetFramework net48 -RequireServer
+          ./build/verify-assembly.ps1 -TargetFramework net8.0-windows -RequireServer
 
-      - name: Verify tool surface parity
-        run: python build/verify_tool_parity.py
+      - name: Server-tool and code-runner tests
+        run: dotnet run -c Release --project tests/ServerToolTests --nologo
 
       - name: Sign binaries
         if: env.AUTOCADMCP_PFX_BASE64 != ''

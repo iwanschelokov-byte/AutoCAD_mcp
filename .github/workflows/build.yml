@@ -1,7 +1,8 @@
 name: build
 
 # Validates every push and PR. No AutoCAD installation is needed: the plugin
-# compiles against the AutoCAD.NET reference assemblies from NuGet.
+# compiles against the AutoCAD.NET reference assemblies from NuGet, and every
+# check here runs without a live session.
 on:
   push:
     branches: [main]
@@ -32,9 +33,16 @@ jobs:
           -c Release --no-restore -p:IncludeNet10=true
           -warnaserror
 
-      - name: Verify registry, classification and JSON-RPC contract
+      # verify-assembly cross-checks tools.json against the registry, and asks
+      # the server which tools it serves itself, so the server must exist first.
+      - name: Build the MCP server
+        run: >
+          dotnet build autocad-plugin/src/AutoCADMCP.Server/AutoCADMCP.Server.csproj
+          -c Release --nologo
+
+      - name: Verify registry, classification, JSON-RPC contract and tool surface
         shell: pwsh
-        run: ./build/verify-assembly.ps1
+        run: ./build/verify-assembly.ps1 -RequireServer
 
       - name: Upload build output
         uses: actions/upload-artifact@v4
@@ -46,34 +54,8 @@ jobs:
             autocad-plugin/src/AutoCADMCPPlugin/bin/Release/net10.0-windows/AutoCADMCPPlugin.dll
           if-no-files-found: error
 
-  server:
-    name: MCP server (Python)
-    runs-on: windows-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: pip install -r autocad-plugin/src/mcp_server/requirements.txt
-
-      - name: Syntax check
-        run: |
-          python -m compileall -q autocad-plugin/src/mcp_server/server.py
-          python -m compileall -q tests/runtime_verify.py
-          python -m compileall -q test_all_tools.py
-
-      - name: Verify every MCP tool maps to a registered command
-        run: python build/verify_tool_parity.py
-
-      - name: Verify generated tool schemas are up to date
-        run: python build/generate_tool_schemas.py --check
-
   mcp-server:
-    name: MCP server (C#)
+    name: MCP server + agent
     runs-on: windows-latest
 
     steps:
@@ -91,3 +73,12 @@ jobs:
       - name: Drive the MCP protocol over stdio
         shell: pwsh
         run: ./build/verify-mcp-server.ps1 -ServerExe dist/server/autocad-mcp-server.exe
+
+      # Covers the server-side tools (spreadsheet reading, PDF cropping) and the
+      # agent's code runner. Fixtures are generated, so nothing is checked in.
+      - name: Server-tool and code-runner tests
+        run: dotnet run -c Release --project tests/ServerToolTests --nologo
+
+      # Not run here - it needs a live AutoCAD - but it must still compile.
+      - name: Build the runtime verification harness
+        run: dotnet build -c Release --nologo tests/RuntimeVerify

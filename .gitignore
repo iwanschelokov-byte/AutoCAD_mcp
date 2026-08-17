@@ -5,11 +5,11 @@
 node_modules/
 revit-test/
 
-# Build outputs
-autocad-plugin/src/AutoCADMCPPlugin/bin/
-autocad-plugin/src/AutoCADMCPPlugin/obj/
-autocad-plugin/src/AutoCADMCP.Server/bin/
-autocad-plugin/src/AutoCADMCP.Server/obj/
+# Build outputs. Matched anywhere rather than per-project, so adding a project
+# does not silently start committing its bin/ - which is how a self-contained
+# publish (hundreds of runtime DLLs) nearly got checked in.
+**/bin/
+**/obj/
 autocad-plugin/src/AutoCADMCP.Server/publish/
 
 # Staged bundle and installer artifacts (rebuilt by build/build-all.ps1).
@@ -17,6 +17,7 @@ autocad-plugin/src/AutoCADMCP.Server/publish/
 # so users can install without a .NET SDK.
 autocad-plugin/dist/AutoCADMCPPlugin.bundle/
 autocad-plugin/dist/server/
+autocad-plugin/dist/agent/
 autocad-plugin/dist/*.exe
 autocad-plugin/dist/*.zip
 

@@ -11,7 +11,7 @@ AI-powered AutoCAD automation via the **Model Context Protocol (MCP)**. Enables 
 ```
 ┌─────────────┐                ┌────────────────────┐
 │  Claude /   │ ─── stdio ───▶ │  MCP server        │
-│  AI Client  │      MCP       │  C# exe  or  Python│ ─┐
+│  AI Client  │      MCP       │  autocad-mcp-server│ ─┐
 └─────────────┘                └────────────────────┘  │
                                                         │  TCP JSON-RPC 2.0
                                                         │  localhost:8081
@@ -27,30 +27,37 @@ AI-powered AutoCAD automation via the **Model Context Protocol (MCP)**. Enables 
 | Component | Language | Location |
 |-----------|----------|----------|
 | **AutoCADMCPPlugin.dll** | C# | `src/AutoCADMCPPlugin/` |
-| **MCP server (recommended)** | C# | `src/AutoCADMCP.Server/` |
-| **MCP server (alternative)** | Python | `src/mcp_server/` |
+| **MCP server** | C# | `src/AutoCADMCP.Server/` |
+| **AutoCode agent** (optional) | C# | `src/AutoCADMCP.Agent/` |
 | **Bundle Manifest** | XML | `config/AutoCADMCPPlugin.bundle/` |
 
-### Two MCP servers, same tools
+Everything is C#. The MCP server ships as one self-contained `.exe`, so nothing
+beyond AutoCAD itself has to be installed on the end user's machine.
 
-Both expose the identical 184 tools; pick whichever suits your setup.
+### Where each tool runs
 
-| | C# server | Python server |
+Of the 183 tools, 182 are commands inside the plugin and are proxied straight
+through. Two run in the server process instead, because they need libraries that
+have no business being loaded into `acad.exe`:
+
+| Tool | Runs in | Why |
 |---|---|---|
-| Artifact | one self-contained `.exe` | `server.py` |
-| Requires Python on the machine | no | yes (3.10+) |
-| Tool schemas | generated from the Python signatures at build time | inferred by FastMCP |
-| Best for | end users, IT deployment | development, quick edits |
+| `create_table_from_excel` | server | reads `.xlsx`; the plugin gets finished geometry via `bulk_create` |
+| `plot_to_pdf` | both | the plugin plots, then the server crops the `MediaBox` to the exact sheet size |
 
-The C# server's schemas are generated from the Python server's typed signatures
-by `build/generate_tool_schemas.py`, so the two surfaces cannot drift — CI fails
-if the generated `tools.json` is stale.
+The plugin deliberately carries no dependency beyond the AutoCAD API and
+Newtonsoft.Json — AutoCAD ships its own copies of common assemblies, and a
+version clash inside `acad.exe` is not a recoverable error.
+
+`tools.json` is the committed tool-surface contract. `build/verify-assembly.ps1`
+cross-checks it against the real command registry and the server's own tool set,
+so the catalogue cannot advertise something nothing can serve.
 
 ### How It Works
 
 The C# plugin loads inside AutoCAD as an addin and exposes the same JSON-RPC pipeline over **two transports** simultaneously:
 
-1. **TCP socket on `localhost:8081`** — used by whichever MCP server you run, which marshals the 184 tools over stdio for Claude / Claude Code / Claude Desktop.
+1. **TCP socket on `localhost:8081`** — used by whichever MCP server you run, which marshals the 183 tools over stdio for Claude / Claude Code / Claude Desktop.
 2. **HTTP loopback on `localhost:8082`** — used by browser apps that can't open raw TCP sockets (a `fetch()` call to `http://127.0.0.1:8082/jsonrpc` reaches every command in the registry, with CORS headers + Chrome Private-Network-Access support out of the box).
 
 Both transports route through the same `JsonRpcHandler`, so every tool (`create_line`, `create_table`, `capture_screenshot`, …) is reachable identically from either path. Commands are marshaled to AutoCAD's main UI thread via `Application.Idle` + `DocumentLock` — except introspection tools, which answer directly so tool discovery keeps working while AutoCAD is busy.
@@ -59,7 +66,7 @@ Both transports route through the same `JsonRpcHandler`, so every tool (`create_
 
 AutoCAD's .NET API is single-threaded. The plugin uses `Application.Idle` event + `DocumentLock` to safely execute commands from the socket handler threads on the main thread.
 
-## Features — 184 MCP Tools
+## Features — 183 MCP Tools
 
 ### System (6)
 | Tool | Description |
@@ -100,7 +107,7 @@ AutoCAD's .NET API is single-threaded. The plugin uses `Application.Idle` event 
 | `create_hatch` | Hatch with boundary, pattern, ACI colour, and optional true RGB |
 | `create_spline` | Smooth spline curve through points |
 | `create_table` | Table with rows, columns, and cell data |
-| `create_table_from_excel` | Table built from a sheet in an `.xlsx` file (requires `openpyxl`) |
+| `create_table_from_excel` | Table built from a sheet in an `.xlsx` file. Read by the MCP server, which sends finished geometry to the plugin |
 
 ### Entity Query (9)
 | Tool | Description |
@@ -192,14 +199,25 @@ AutoCAD's .NET API is single-threaded. The plugin uses `Application.Idle` event 
 | `find_nearest` | Find entities nearest to a point (by type/layer, sorted by distance) |
 | `measure_between` | Measure distance between two entities by handle |
 
-### Code Execution (1, opt-in)
-| Tool | Description |
-|------|-------------|
-| `execute_python` | Run Python in the MCP server process with `call(method, params)` pre-wired — for multi-step geometry that would otherwise cost dozens of round-trips |
+### Code Execution (optional, separate server)
 
-> **Disabled by default.** Set `AUTOCAD_MCP_ALLOW_EXEC=1` to enable. The code is
-> not sandboxed and runs with the server process's privileges; drawing
-> operations still pass through the read-only and confirmation gates.
+Multi-step geometry that would otherwise cost dozens of round-trips is handled
+by the **AutoCode agent** (`src/AutoCADMCP.Agent/`) rather than by a tool on this
+server. It asks Claude to write C# against the tool surface above and can then
+run it:
+
+| Tool | Needs AutoCAD | Needs execution enabled |
+|---|---|---|
+| `agent_status` | no | no |
+| `generate_drawing_code` | no | no |
+| `draw` | yes | yes |
+
+> **Execution is off by default.** Set `AUTOCAD_AGENT_ALLOW_EXEC=1` to enable
+> `draw`. Generated code is not sandboxed and runs with the agent process's
+> privileges; drawing operations still pass through the read-only and
+> confirmation gates. `generate_drawing_code` needs no permission and shows you
+> the code before anything runs. See
+> [the agent README](autocad-plugin/src/AutoCADMCP.Agent/README.md).
 
 ### Server Introspection & Safety (3)
 | Tool | Description |
@@ -361,7 +379,6 @@ host the same bundle and work without changes.
 ### Prerequisites
 
 - **AutoCAD 2022–2027** (any edition including LT with .NET support)
-- **Python 3.10+** (for MCP server)
 - **Windows** (AutoCAD is Windows-only)
 - **.NET SDK 8.0+** (only if building from source; **SDK 10.0** is needed for the AutoCAD 2027 target)
 
@@ -389,7 +406,7 @@ install.bat
 
 This builds every target available on the machine, copies the DLLs to `%APPDATA%\Autodesk\ApplicationPlugins\AutoCADMCPPlugin.bundle\`, checks that each framework folder actually received its DLL, and AutoCAD will load the plugin automatically on startup. The closing summary says whether the AutoCAD 2027 folder was populated or skipped.
 
-Both installers finish by checking whether `mcp`, `openpyxl` and `pikepdf` are importable and offering to install them for you; Step 3 below is that same `pip install` by hand. The check never installs anything without being asked, and skips itself if Python is not on `PATH`.
+The MCP server is a single self-contained executable, so there is nothing else to install once the plugin is in place.
 
 ### Option C: Manual Install (Copy & Paste)
 
@@ -433,14 +450,21 @@ Other commands:
 - `MCPSTOP` — Stop the server
 - `MCPSTATUS` — Show connection count
 
-### Step 3: Install the MCP Server
+### Step 3: Build the MCP Server
 
 ```bash
-cd autocad-plugin/src/mcp_server
-pip install -r requirements.txt
+builduild-all.ps1
 ```
 
-This pulls in `mcp`, `openpyxl` (for `create_table_from_excel`) and `pikepdf` (used by `plot_to_pdf` to crop the finished page down to the plotted window — see [Plotting to PDF](#plotting-to-pdf)). Only `mcp` is strictly required; the other two disable one feature each if absent.
+This publishes `autocad-plugin/dist/server/autocad-mcp-server.exe` — one
+self-contained executable with no runtime to install. Add `-IncludeAgent` if you
+also want the optional [AutoCode agent](autocad-plugin/src/AutoCADMCP.Agent/README.md).
+
+Check it can see AutoCAD before wiring it into a client:
+
+```bash
+autocad-plugin\dist\serverutocad-mcp-server.exe --check
+```
 
 ### Step 4: Configure Your MCP Client
 
@@ -450,8 +474,7 @@ Create a `.mcp.json` in your project root:
 {
   "mcpServers": {
     "autocad-mcp": {
-      "command": "python",
-      "args": ["<full-path-to>/autocad-plugin/src/mcp_server/server.py"],
+      "command": "<full-path-to>/autocad-plugin/dist/server/autocad-mcp-server.exe",
       "env": {
         "AUTOCAD_MCP_HOST": "localhost",
         "AUTOCAD_MCP_PORT": "8081"
@@ -467,8 +490,7 @@ For **Claude Desktop**, add to `claude_desktop_config.json`:
 {
   "mcpServers": {
     "autocad-mcp": {
-      "command": "python",
-      "args": ["C:/path/to/autocad-plugin/src/mcp_server/server.py"]
+      "command": "C:/path/to/autocad-plugin/dist/server/autocad-mcp-server.exe"
     }
   }
 }
@@ -510,7 +532,7 @@ Paper size is the part that usually surprises people. AutoCAD can only plot onto
 
 Leaving `paper` at its default of `auto` skips all of that: the command measures the window being plotted and picks the smallest defined sheet that contains it, preferring the orientation that needs no rotation when a sheet exists in both. Because the smallest sheet that *contains* a window is rarely the same size as the window, the finished page is then cropped down to the plotted extents and the surplus removed, and the answer reports `trimmed`, `trimmed_size_mm` and the `trim_box_mm` that was applied. Pass `trim: false` to keep the driver's page exactly as it came out.
 
-Trimming is done in the Python MCP server with [pikepdf](https://pypi.org/project/pikepdf/), which `requirements.txt` installs. It is not required for plotting: without it the plot still succeeds and the answer simply reports `trimmed: false` with a `trim_error` naming the missing package. The crop is measured from the real `MediaBox` of the file AutoCAD produced rather than from the nominal sheet dimensions, because `DWG To PDF.pc3` quantises its page at roughly 0.042 mm per unit and a nominal 841 × 594 mm sheet arrives as 841.022 × 594.078 mm.
+Trimming is done in the MCP server with [PdfSharp](https://www.nuget.org/packages/PdfSharp), which is compiled in — the plugin itself carries no PDF library, because loading one inside `acad.exe` risks shadowing an assembly AutoCAD already ships. A failed crop never fails the plot: the answer simply reports `trimmed: false` with a `trim_error` explaining why. The crop is measured from the real `MediaBox` of the file AutoCAD produced rather than from the nominal sheet dimensions, because `DWG To PDF.pc3` quantises its page at roughly 0.042 mm per unit and a nominal 841 × 594 mm sheet arrives as 841.022 × 594.078 mm.
 
 One prerequisite applies to both commands: a drawing has to be open. Plot devices, style tables and paper sizes are all read through `PlotSettingsValidator.Current`, which is current *for the active document*, so with no drawing open there is nothing to read them from. Both commands check for an active document before touching the plot API and return a plain error explaining what to do.
 
@@ -673,10 +695,18 @@ autocad-plugin/
     │   └── Models/
     │       ├── ICommand.cs        # Command interface
     │       └── CommandResult.cs   # Result wrapper
-    └── mcp_server/                # Python MCP Server
-        ├── server.py              # 184 MCP tools via FastMCP
-        ├── autocad_client.py      # Async TCP client with auto-reconnect
-        └── requirements.txt
+    ├── AutoCADMCP.Server/         # MCP server (self-contained exe)
+    │   ├── McpServer.cs           # MCP over stdio
+    │   ├── PluginClient.cs        # TCP JSON-RPC client
+    │   ├── tools.json             # The committed tool-surface contract
+    │   └── Tools/                 # Tools served here, not by the plugin
+    │       ├── XlsxReader.cs      # Dependency-free .xlsx reader
+    │       ├── ExcelTableTool.cs  # create_table_from_excel
+    │       └── PlotToPdfTool.cs   # plot_to_pdf + MediaBox crop
+    └── AutoCADMCP.Agent/          # Optional AutoCode agent
+        ├── Prompts.cs             # System prompt built from tools.json
+        ├── Generator.cs           # Claude API call
+        └── CodeRunner.cs          # Runs the generated C#
 ```
 
 ## Adding New Commands
