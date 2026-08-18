@@ -50,6 +50,16 @@ public sealed class PlotToPdfTool : IServerTool
         if (result["required_mm"] is not JArray need || need.Count < 2)
             return result;   // standard sheet — the driver already produced the right size
 
+        // trim=false is the caller keeping the whole printer sheet on purpose.
+        // Reported rather than silent, so "why is my page still 841 wide" has an
+        // answer in the reply itself.
+        if (args["trim"]?.Type == JTokenType.Boolean && !args["trim"]!.Value<bool>())
+        {
+            result["trimmed"] = false;
+            result["trim_reason"] = "trim was false, so the whole printer sheet was kept.";
+            return result;
+        }
+
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
         {
             result["trimmed"] = false;

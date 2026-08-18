@@ -23,6 +23,26 @@ namespace AutoCADMCPPlugin.Core
         /// </summary>
         public static int TimeoutMs { get; set; } = 30000;
 
+        private static long _lastIdleTicks;
+
+        /// <summary>
+        /// Seconds since AutoCAD's idle loop last ran, or -1 if it has never run.
+        /// A modal dialog runs its own message loop, so this number growing past
+        /// the timeout is the signature of a dialog blocking the bridge.
+        /// </summary>
+        public static double SecondsSinceIdle
+        {
+            get
+            {
+                long ticks = Interlocked.Read(ref _lastIdleTicks);
+                if (ticks == 0) return -1;
+                return (DateTime.UtcNow.Ticks - ticks) / (double)TimeSpan.TicksPerSecond;
+            }
+        }
+
+        /// <summary>Actions queued but not yet picked up by the main thread.</summary>
+        public static int PendingCount => _queue.Count;
+
         /// <summary>
         /// Execute a function on AutoCAD's main thread and return the result.
         /// Blocks the calling thread until execution completes or times out.
@@ -37,6 +57,10 @@ namespace AutoCADMCPPlugin.Core
             // Wait for the main thread to pick it up and execute
             if (!item.CompletionEvent.Wait(TimeoutMs))
             {
+                // Abandon it. Without this the action stays in the queue and
+                // fires whenever AutoCAD becomes idle again - minutes later, in
+                // a document that may no longer be the one the caller meant.
+                item.Abandoned = true;
                 throw new TimeoutException(
                     $"AutoCAD main thread did not execute the command within {TimeoutMs}ms.");
             }
@@ -66,8 +90,14 @@ namespace AutoCADMCPPlugin.Core
         /// </summary>
         private static void OnIdle(object sender, EventArgs e)
         {
+            Interlocked.Exchange(ref _lastIdleTicks, DateTime.UtcNow.Ticks);
+
             while (_queue.TryDequeue(out ActionItem item))
             {
+                // The caller has already given up and been told so. Running the
+                // action now would change the drawing behind its back.
+                if (item.Abandoned) continue;
+
                 try
                 {
                     item.Result = item.Action();
@@ -110,6 +140,7 @@ namespace AutoCADMCPPlugin.Core
             public ManualResetEventSlim CompletionEvent { get; } = new ManualResetEventSlim(false);
             public Models.CommandResult Result { get; set; }
             public Exception Exception { get; set; }
+            public volatile bool Abandoned;
 
             public ActionItem(Func<Models.CommandResult> action)
             {

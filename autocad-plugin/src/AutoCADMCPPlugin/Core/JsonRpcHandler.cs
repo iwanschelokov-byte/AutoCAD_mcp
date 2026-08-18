@@ -129,10 +129,7 @@ namespace AutoCADMCPPlugin.Core
             {
                 sw.Stop();
                 LogCall(method, false, ErrorCode.Timeout, sw.ElapsedMilliseconds, drawing, command.IsWrite);
-                return CreateErrorResponse(id, InternalError,
-                    "Timeout: AutoCAD did not process the command within the allowed time. " +
-                    "Ensure AutoCAD is not in a modal state (dialog box, command prompt).",
-                    ErrorCode.Timeout);
+                return CreateErrorResponse(id, InternalError, DescribeTimeout(method), ErrorCode.Timeout);
             }
             catch (ArgumentException ex)
             {
@@ -168,6 +165,56 @@ namespace AutoCADMCPPlugin.Core
         private static void LogCall(string method, bool success, ErrorCode code, long ms, string drawing, bool isWrite)
         {
             ActivityLogger.Log(method, success, code, ms, drawing, isWrite);
+        }
+
+        /// <summary>
+        /// Turn a bare timeout into a diagnosis.
+        ///
+        /// Everything here is read from managed state that does not need
+        /// AutoCAD's main thread - the tracker's own lock and a tick counter -
+        /// because at this moment that thread is precisely what is unavailable.
+        /// The age of the last idle tick is the useful signal: a command waiting
+        /// at a prompt still lets Idle fire, a modal dialog does not.
+        /// </summary>
+        private static string DescribeTimeout(string method)
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.Append("Timeout: AutoCAD did not process '").Append(method)
+              .Append("' within the allowed time.");
+
+            double idleAge = IdleActionRunner.SecondsSinceIdle;
+            if (idleAge >= 0)
+            {
+                sb.Append(" AutoCAD's idle loop last ran ")
+                  .Append(idleAge.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture))
+                  .Append(" s ago.");
+                if (idleAge > 2.0)
+                    sb.Append(" That is the signature of a MODAL DIALOG: it runs its own message loop, " +
+                              "so the plugin never gets the main thread back. No MCP call can close it - " +
+                              "someone has to dismiss the dialog in AutoCAD by hand.");
+                else
+                    sb.Append(" The idle loop is alive, so this call itself is slow or a command is " +
+                              "holding the document lock rather than a dialog blocking everything.");
+            }
+
+            int pending = IdleActionRunner.PendingCount;
+            if (pending > 0)
+                sb.Append(" ").Append(pending).Append(pending == 1
+                    ? " call is still queued behind it."
+                    : " calls are still queued behind it.");
+
+            try
+            {
+                JObject last = CommandTracker.LastEntry();
+                if (last != null)
+                    sb.Append(" Last command seen: ").Append(last["command"])
+                      .Append(" (").Append(last["status"]).Append(", ").Append(last["time"]).Append(").");
+            }
+            catch { }
+
+            sb.Append(" Once AutoCAD responds again, call system_status - it reports CMDACTIVE / CMDNAMES - " +
+                      "and cancel_command to abort a command that is waiting at a prompt.");
+            return sb.ToString();
         }
 
         private static string CreateSuccessResponse(object id, JToken result)

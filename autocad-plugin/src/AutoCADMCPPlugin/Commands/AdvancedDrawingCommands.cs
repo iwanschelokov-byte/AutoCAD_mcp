@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
@@ -259,9 +260,64 @@ namespace AutoCADMCPPlugin.Commands
         }
     }
 
+    /// <summary>
+    /// Create many entities in one transaction.
+    ///
+    /// Each element of "entities" may be written in either shape:
+    ///   nested - {"type": "line", "params": {"start": [0,0], "end": [10,0]}}
+    ///   flat   - {"type": "line", "start": [0,0], "end": [10,0]}
+    /// Both are accepted, and a mixture is accepted too: keys inside "params"
+    /// win over keys of the same name at the top level. Earlier builds only
+    /// understood the nested shape and silently produced count=0 for the flat
+    /// one - every element that cannot be built is now reported in "skipped"
+    /// with the reason, so a zero count always says why.
+    /// </summary>
     public class BulkCreateCommand : AcadCommand
     {
         public override string MethodName => "bulk_create";
+
+        private const string SupportedTypes =
+            "line, circle, arc, polyline, rectangle, text, mtext, ellipse, hatch";
+
+        /// <summary>First present, non-null token among the given key names.</summary>
+        private static JToken Pick(JObject p, params string[] keys)
+        {
+            foreach (string k in keys)
+            {
+                JToken t = p[k];
+                if (t != null && t.Type != JTokenType.Null) return t;
+            }
+            return null;
+        }
+
+        private static JObject Skip(int index, string type, string reason)
+        {
+            return new JObject
+            {
+                ["index"] = index,
+                ["type"] = type ?? "",
+                ["reason"] = reason
+            };
+        }
+
+        /// <summary>
+        /// Flatten one element into a single parameter bag. Top-level keys and
+        /// nested "params" keys are merged, with "params" taking precedence.
+        /// </summary>
+        private static JObject Flatten(JObject el)
+        {
+            JObject nested = el["params"] as JObject;
+            if (nested == null) return el;
+
+            JObject merged = (JObject)el.DeepClone();
+            merged.Remove("params");
+            merged.Merge(nested, new JsonMergeSettings
+            {
+                MergeArrayHandling = MergeArrayHandling.Replace,
+                MergeNullValueHandling = MergeNullValueHandling.Ignore
+            });
+            return merged;
+        }
 
         public override CommandResult Execute(JObject parameters)
         {
@@ -274,6 +330,8 @@ namespace AutoCADMCPPlugin.Commands
 
             Database db = doc.Database;
             JArray createdHandles = new JArray();
+            JArray skipped = new JArray();
+            JArray warnings = new JArray();
 
             using (LockDoc())
             using (Transaction tr = db.TransactionManager.StartTransaction())
@@ -282,10 +340,17 @@ namespace AutoCADMCPPlugin.Commands
                 BlockTableRecord ms = (BlockTableRecord)tr.GetObject(bt[BlockTableRecord.ModelSpace], OpenMode.ForWrite);
                 LayerTable lt = (LayerTable)tr.GetObject(db.LayerTableId, OpenMode.ForRead);
 
-                foreach (JToken item in entities)
+                for (int index = 0; index < entities.Count; index++)
                 {
-                    string type = item["type"]?.ToString()?.ToLower();
-                    JObject p = item["params"] as JObject ?? new JObject();
+                    JObject el = entities[index] as JObject;
+                    if (el == null)
+                    {
+                        skipped.Add(Skip(index, null, "element is not a JSON object"));
+                        continue;
+                    }
+
+                    string type = el["type"]?.ToString()?.Trim().ToLower();
+                    JObject p = Flatten(el);
 
                     Entity ent = null;
                     try
@@ -293,41 +358,46 @@ namespace AutoCADMCPPlugin.Commands
                         switch (type)
                         {
                             case "line":
-                                Point3d ls = ParsePoint(p["start"], "start");
-                                Point3d le = ParsePoint(p["end"], "end");
+                                Point3d ls = ParsePoint(Pick(p, "start", "start_point", "point1", "from"), "start");
+                                Point3d le = ParsePoint(Pick(p, "end", "end_point", "point2", "to"), "end");
                                 ent = new Line(ls, le);
                                 break;
 
                             case "circle":
-                                Point3d cc = ParsePoint(p["center"], "center");
-                                double cr = p["radius"]?.Value<double>() ?? 1;
+                                Point3d cc = ParsePoint(Pick(p, "center", "center_point"), "center");
+                                double cr = Pick(p, "radius", "r")?.Value<double>() ?? 1;
                                 ent = new Circle(cc, Vector3d.ZAxis, cr);
                                 break;
 
                             case "arc":
-                                Point3d ac = ParsePoint(p["center"], "center");
-                                double ar = p["radius"]?.Value<double>() ?? 1;
+                                Point3d ac = ParsePoint(Pick(p, "center", "center_point"), "center");
+                                double ar = Pick(p, "radius", "r")?.Value<double>() ?? 1;
                                 double asa = (p["start_angle"]?.Value<double>() ?? 0) * Math.PI / 180.0;
                                 double aea = (p["end_angle"]?.Value<double>() ?? 180) * Math.PI / 180.0;
                                 ent = new Arc(ac, ar, asa, aea);
                                 break;
 
                             case "polyline":
-                                JArray pts = p["points"] as JArray;
-                                if (pts == null || pts.Count < 2) continue;
+                                JArray pts = Pick(p, "points", "vertices", "pts") as JArray;
+                                if (pts == null || pts.Count < 2)
+                                {
+                                    skipped.Add(Skip(index, type,
+                                        "'points' must be an array of at least 2 points"));
+                                    continue;
+                                }
                                 Polyline pl = new Polyline();
                                 for (int i = 0; i < pts.Count; i++)
                                 {
                                     Point3d pp = ParsePoint(pts[i], $"pt{i}");
                                     pl.AddVertexAt(i, new Point2d(pp.X, pp.Y), 0, 0, 0);
                                 }
-                                if (p["closed"]?.Value<bool>() == true) pl.Closed = true;
+                                if (Pick(p, "closed", "close")?.Value<bool>() == true) pl.Closed = true;
                                 ent = pl;
                                 break;
 
                             case "rectangle":
-                                Point3d rc1 = ParsePoint(p["corner1"], "corner1");
-                                Point3d rc2 = ParsePoint(p["corner2"], "corner2");
+                                Point3d rc1 = ParsePoint(Pick(p, "corner1", "point1", "min_point", "start"), "corner1");
+                                Point3d rc2 = ParsePoint(Pick(p, "corner2", "point2", "max_point", "end"), "corner2");
                                 Polyline rect = new Polyline();
                                 rect.AddVertexAt(0, new Point2d(rc1.X, rc1.Y), 0, 0, 0);
                                 rect.AddVertexAt(1, new Point2d(rc2.X, rc1.Y), 0, 0, 0);
@@ -338,39 +408,40 @@ namespace AutoCADMCPPlugin.Commands
                                 break;
 
                             case "text":
+                                JToken tpos = Pick(p, "position", "insertion_point", "point", "start_point");
                                 DBText txt = new DBText();
-                                txt.Position = ParsePoint(p["position"], "position");
-                                txt.TextString = p["text"]?.ToString() ?? "";
-                                txt.Height = p["height"]?.Value<double>() ?? 2.5;
-                                double rot = p["rotation"]?.Value<double>() ?? 0;
+                                txt.Position = ParsePoint(tpos, "position");
+                                txt.TextString = Pick(p, "text", "contents", "value")?.ToString() ?? "";
+                                txt.Height = Pick(p, "height", "text_height")?.Value<double>() ?? 2.5;
+                                double rot = Pick(p, "rotation", "angle")?.Value<double>() ?? 0;
                                 txt.Rotation = rot * Math.PI / 180.0;
-                                string tjust = p["justification"]?.ToString() ?? "";
+                                string tjust = Pick(p, "justification", "justify", "alignment")?.ToString() ?? "";
                                 if (tjust == "middle-center")
                                 {
                                     txt.HorizontalMode = TextHorizontalMode.TextCenter;
                                     txt.VerticalMode = TextVerticalMode.TextVerticalMid;
-                                    txt.AlignmentPoint = ParsePoint(p["position"], "position");
+                                    txt.AlignmentPoint = ParsePoint(tpos, "position");
                                 }
                                 ent = txt;
                                 break;
 
                             case "mtext":
                                 MText mt = new MText();
-                                mt.Location = ParsePoint(p["position"], "position");
-                                mt.Contents = p["text"]?.ToString() ?? "";
-                                mt.TextHeight = p["height"]?.Value<double>() ?? 2.5;
+                                mt.Location = ParsePoint(Pick(p, "position", "insertion_point", "point", "start_point"), "position");
+                                mt.Contents = Pick(p, "text", "contents", "value")?.ToString() ?? "";
+                                mt.TextHeight = Pick(p, "height", "text_height")?.Value<double>() ?? 2.5;
                                 double w = p["width"]?.Value<double>() ?? 0;
                                 if (w > 0) mt.Width = w;
-                                string mjust = p["justification"]?.ToString() ?? "";
+                                string mjust = Pick(p, "justification", "justify", "alignment")?.ToString() ?? "";
                                 if (mjust == "middle-center")
                                     mt.Attachment = AttachmentPoint.MiddleCenter;
                                 ent = mt;
                                 break;
 
                             case "ellipse":
-                                Point3d ec = ParsePoint(p["center"], "center");
-                                double emaj = p["major_radius"]?.Value<double>() ?? 1;
-                                double emin = p["minor_radius"]?.Value<double>() ?? 0.5;
+                                Point3d ec = ParsePoint(Pick(p, "center", "center_point"), "center");
+                                double emaj = Pick(p, "major_radius", "major_axis")?.Value<double>() ?? 1;
+                                double emin = Pick(p, "minor_radius", "minor_axis")?.Value<double>() ?? 0.5;
                                 ent = new Ellipse(ec, Vector3d.ZAxis, new Vector3d(emaj, 0, 0), emin / emaj, 0, 2 * Math.PI);
                                 break;
 
@@ -384,8 +455,13 @@ namespace AutoCADMCPPlugin.Commands
                                 // append/colour pass — both the boundary and
                                 // the hatch are fully appended + coloured
                                 // within this case.
-                                JArray hPts = p["boundary"] as JArray;
-                                if (hPts == null || hPts.Count < 3) continue;
+                                JArray hPts = Pick(p, "boundary", "points", "vertices") as JArray;
+                                if (hPts == null || hPts.Count < 3)
+                                {
+                                    skipped.Add(Skip(index, type,
+                                        "'boundary' must be an array of at least 3 points"));
+                                    continue;
+                                }
 
                                 Polyline hb = new Polyline();
                                 for (int i = 0; i < hPts.Count; i++)
@@ -423,8 +499,8 @@ namespace AutoCADMCPPlugin.Commands
                                 createdHandles.Add(Handles.Format(hb));
 
                                 Hatch h = new Hatch();
-                                string hPattern = p["pattern"]?.ToString() ?? "SOLID";
-                                double hScale = p["scale"]?.Value<double>() ?? 1.0;
+                                string hPattern = Pick(p, "pattern", "pattern_name", "hatch_pattern")?.ToString() ?? "SOLID";
+                                double hScale = Pick(p, "scale", "pattern_scale")?.Value<double>() ?? 1.0;
 
                                 ms.AppendEntity(h);
                                 tr.AddNewlyCreatedDBObject(h, true);
@@ -450,14 +526,21 @@ namespace AutoCADMCPPlugin.Commands
                             }
 
                             default:
+                                skipped.Add(Skip(index, type, string.IsNullOrEmpty(type)
+                                    ? "'type' is missing; supported: " + SupportedTypes
+                                    : $"unsupported type '{type}'; supported: {SupportedTypes}"));
                                 continue;
                         }
 
                         if (ent != null)
                         {
                             string layer = p["layer"]?.ToString();
-                            if (!string.IsNullOrEmpty(layer) && lt.Has(layer))
-                                ent.Layer = layer;
+                            if (!string.IsNullOrEmpty(layer))
+                            {
+                                if (lt.Has(layer)) ent.Layer = layer;
+                                else warnings.Add(Skip(index, type,
+                                    $"layer '{layer}' does not exist - the entity was created on the current layer instead"));
+                            }
 
                             int? color = p["color"]?.Value<int>();
                             if (color.HasValue && color.Value >= 0 && color.Value <= 255)
@@ -468,18 +551,46 @@ namespace AutoCADMCPPlugin.Commands
                             createdHandles.Add(Handles.Format(newId));
                         }
                     }
-                    catch { /* skip invalid entities */ }
+                    catch (System.Exception ex)
+                    {
+                        // Never swallow a parse/build failure: an element that
+                        // did not become an entity has to say why it did not.
+                        skipped.Add(Skip(index, type, ex.Message));
+                    }
                 }
 
                 tr.Commit();
             }
 
-            return CommandResult.Ok(new JObject
+            // One element is not always one entity: a hatch contributes its
+            // boundary polyline as well, so the two counts are reported
+            // separately rather than one being passed off as the other.
+            int elementsCreated = entities.Count - skipped.Count;
+
+            var result = new JObject
             {
                 ["handles"] = createdHandles,
                 ["count"] = createdHandles.Count,
-                ["requested"] = entities.Count
-            });
+                ["elements_created"] = elementsCreated,
+                ["requested"] = entities.Count,
+                ["skipped_count"] = skipped.Count,
+                ["skipped"] = skipped
+            };
+            if (warnings.Count > 0) result["warnings"] = warnings;
+
+            if (skipped.Count == 0)
+                result["message"] = $"All {entities.Count} elements created " +
+                                    $"({createdHandles.Count} entities).";
+            else if (createdHandles.Count == 0)
+                result["message"] = $"Nothing was created: all {entities.Count} elements were skipped. " +
+                                    "See 'skipped' for the reason of each. Elements may be written flat " +
+                                    "({\"type\":\"line\",\"start\":[...],\"end\":[...]}) or nested under \"params\".";
+            else
+                result["message"] = $"{elementsCreated} of {entities.Count} elements created " +
+                                    $"({createdHandles.Count} entities); {skipped.Count} skipped - " +
+                                    "see 'skipped'.";
+
+            return CommandResult.Ok(result);
         }
     }
 

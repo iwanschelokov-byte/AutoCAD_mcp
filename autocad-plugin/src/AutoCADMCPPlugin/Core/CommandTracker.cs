@@ -201,6 +201,20 @@ namespace AutoCADMCPPlugin.Core
             return arr;
         }
 
+        /// <summary>
+        /// The newest entry in the buffer, or null if nothing has been recorded.
+        /// Reading this takes only the tracker's own lock, so it is safe from the
+        /// socket thread while AutoCAD's main thread is blocked - which is
+        /// exactly when a caller most needs to know what the last command was.
+        /// </summary>
+        public static JObject LastEntry()
+        {
+            lock (_lock)
+            {
+                return _log.Last == null ? null : ToJson(_log.Last.Value);
+            }
+        }
+
         /// <summary>Most recent failed/cancelled entry newer than <paramref name="since"/>, or null.</summary>
         public static JObject LastProblem(long since)
         {

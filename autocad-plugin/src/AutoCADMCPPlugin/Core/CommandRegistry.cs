@@ -64,6 +64,7 @@ namespace AutoCADMCPPlugin.Core
             Register(new GetSystemVariableCommand());
             Register(new ExecuteCommandCommand());
             Register(new ReadCommandLineCommand());
+            Register(new CancelCommandCommand());
 
             // === Drawing / Document ===
             Register(new DrawingNewCommand());

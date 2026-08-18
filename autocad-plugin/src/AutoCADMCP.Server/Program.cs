@@ -55,7 +55,7 @@ public static class Program
             bool up = await plugin.IsReachableAsync();
             stderr.WriteLine(up
                 ? $"plugin reachable at {host}:{port}"
-                : $"plugin NOT reachable at {host}:{port} - start AutoCAD and run MCPSTART");
+                : $"plugin NOT reachable at {host}:{port} - {plugin.DescribeUnreachable()}");
             return up ? 0 : 1;
         }
 

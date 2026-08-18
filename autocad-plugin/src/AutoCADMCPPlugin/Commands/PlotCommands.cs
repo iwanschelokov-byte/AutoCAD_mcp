@@ -430,7 +430,7 @@ namespace AutoCADMCPPlugin.Commands
     /// assembly deliberately has no dependency beyond AutoCAD and Newtonsoft —
     /// so the result reports "required_mm", the window multiplied by the scale,
     /// which is exactly the box to crop to. The bundled MCP server does that
-    /// crop with pikepdf and reports whether it worked; a caller talking to this
+    /// crop with PdfSharp and reports whether it worked; a caller talking to this
     /// socket directly gets the number and can crop it itself.
     /// </summary>
     public class PlotToPdfCommand : AcadCommand
@@ -559,6 +559,34 @@ namespace AutoCADMCPPlugin.Commands
             string savedLayout = null;
             var info = new JObject();
 
+            // Which drawing is actually going onto the paper. plot_to_pdf always
+            // uses MdiActiveDocument, and with several drawings open that is not
+            // necessarily the one the caller had in mind - so say it out loud
+            // instead of leaving the caller to infer it from the PDF.
+            try
+            {
+                info["document"] = doc.Name;
+                string dwgPath = null;
+                try { dwgPath = doc.Database?.Filename; } catch { }
+                if (!string.IsNullOrEmpty(dwgPath)) info["document_path"] = dwgPath;
+                try
+                {
+                    object dbmod = Application.GetSystemVariable("DBMOD");
+                    if (dbmod != null) info["unsaved_changes"] = Convert.ToInt32(dbmod) != 0;
+                }
+                catch { }
+
+                int openCount = 0;
+                foreach (Document od in Application.DocumentManager) { if (od != null) openCount++; }
+                info["documents_open"] = openCount;
+                if (openCount > 1)
+                    info["document_note"] =
+                        "Plotted the ACTIVE drawing. " + openCount + " drawings are open - if this is " +
+                        "not the one you meant, activate it first (drawing_open on its path brings it " +
+                        "to the front) and plot again.";
+            }
+            catch { }
+
             try
             {
                 LayoutManager lm = LayoutManager.Current;
@@ -609,7 +637,12 @@ namespace AutoCADMCPPlugin.Commands
 
             info["output_path"] = outputPath;
             info["file_size"] = size;
-            info["message"] = $"Plotted to {outputPath} ({size:N0} bytes).";
+            string plottedDoc = info["document"] == null ? "the active drawing" : info["document"].ToString();
+            string plottedLayout = info["layout"] == null ? null : info["layout"].ToString();
+            info["message"] =
+                "Plotted '" + plottedDoc + "'" +
+                (plottedLayout == null ? "" : " (layout '" + plottedLayout + "')") +
+                $" to {outputPath} ({size:N0} bytes).";
             return CommandResult.Ok(info);
         }
 

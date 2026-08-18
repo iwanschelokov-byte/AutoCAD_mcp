@@ -295,8 +295,8 @@
   },
   {
     "name": "bulk_create",
-    "description": "Create multiple entities in one call for performance. Each item: {type: 'line'|'circle'|'arc'|'polyline'|'rectangle'|'text'|'mtext'|'ellipse', params: {...}}.",
-    "summary": "Create multiple entities in one call for performance. Each item: {type: 'line'|'circle'|'arc'|'polyline'|'rectangle'|'text'|'mtext'|'ellipse', params: {...}}.",
+    "description": "Create multiple entities in one call for performance.\n\nEach element may be written either nested or flat:\n    {\"type\": \"line\", \"params\": {\"start\": [0,0], \"end\": [10,0]}}\n    {\"type\": \"line\", \"start\": [0,0], \"end\": [10,0]}\nBoth are accepted, and a mixture is accepted too - keys inside \"params\" win\nover keys of the same name at the top level. Common alternative names are\nresolved as well (start_point/point1/from, center_point, vertices/pts,\ninsertion_point, contents/value, pattern_name).\n\nSupported types: line, circle, arc, polyline, rectangle, text, mtext,\nellipse, hatch.\n\nEvery element that does not become an entity is returned in \"skipped\" with\nits index, its type and the reason, so a count of 0 always says why.",
+    "summary": "Create multiple entities in one call for performance.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -315,7 +315,7 @@
   },
   {
     "name": "bulk_erase",
-    "description": "Erase multiple entities at once. By handles list, or by layer/type filter.",
+    "description": "Erase multiple entities at once. By handles list, or by layer/type filter.\n\nDestructive — pass __confirm=true to proceed.",
     "summary": "Erase multiple entities at once. By handles list, or by layer/type filter.",
     "inputSchema": {
       "type": "object",
@@ -331,6 +331,26 @@
         },
         "type": {
           "type": "string"
+        },
+        "confirm": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  },
+  {
+    "name": "cancel_command",
+    "description": "Send ESC to AutoCAD to abort a command that is waiting at a prompt.\n\nA command sitting at a prompt still lets the bridge answer, but it eats\nwhatever is sent next as its prompt response, so a stuck prompt has to be\ncleared before anything else works.\n\nThis cannot close a modal dialog: a dialog runs its own message loop and only\na human can dismiss it. When CMDACTIVE reports a dialog the call refuses and\nsays so rather than pretending to have helped.\n\nrepeat  1..5 ESC pairs; a few commands (MATCHPROP is the usual offender)\n        re-arm themselves after a single ESC.\n\nThe cancel is queued, so the state in the reply is the state *before* it -\ncall system_status again to confirm the command line is idle. Sending ESC\nmodifies nothing, so this tool stays available in read-only mode: it is what\nunsticks a prompt when everything else is refused.",
+    "summary": "Send ESC to AutoCAD to abort a command that is waiting at a prompt.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "repeat": {
+          "type": "integer",
+          "default": 1
         }
       },
       "required": [],
@@ -339,13 +359,29 @@
   },
   {
     "name": "capture_screenshot",
-    "description": "Capture a screenshot of the current AutoCAD window and save as PNG.\nReturns the file path of the saved image. Use this to visually verify\nthat drawing operations were completed correctly. The AI can view the\nreturned image file to check the result.",
-    "summary": "Capture a screenshot of the current AutoCAD window and save as PNG.",
+    "description": "Capture the AutoCAD window as PNG or JPEG and save it. Returns the file path,\nso the image can be viewed to verify that an operation did what was intended.\n\narea       \"window\" (default) grabs the whole application frame; \"drawing\"\n           crops to the drawing area alone, typically a third of the pixels.\nmax_width  Downscale to this width, default 1600 px; 0 keeps full size.\nformat     \"png\" (default) or \"jpeg\" (\"jpg\" is accepted too) - for a CAD\n           screen JPEG is roughly a tenth of the bytes.\nquality    JPEG quality, default 85, clamped to 20..100.\n\nThe answer reports area_used, the captured size, whether it was scaled, and the\nformat actually written - which falls back to PNG on a runtime with no JPEG\nencoder - so the caller always knows what it got.",
+    "summary": "Capture the AutoCAD window as PNG or JPEG and save it.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "output_path": {
           "type": "string"
+        },
+        "area": {
+          "type": "string",
+          "default": "window"
+        },
+        "max_width": {
+          "type": "integer",
+          "default": 1600
+        },
+        "format": {
+          "type": "string",
+          "default": "png"
+        },
+        "quality": {
+          "type": "integer",
+          "default": 85
         }
       },
       "required": [],
@@ -2179,13 +2215,17 @@
   },
   {
     "name": "delete_layer",
-    "description": "Delete a layer. Entities on it are moved to layer '0'. Cannot delete '0' or current layer.",
+    "description": "Delete a layer. Entities on it are moved to layer '0'. Cannot delete '0' or current layer.\n\nDestructive — pass __confirm=true to proceed.",
     "summary": "Delete a layer. Entities on it are moved to layer '0'. Cannot delete '0' or current layer.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "name": {
           "type": "string"
+        },
+        "confirm": {
+          "type": "boolean",
+          "default": false
         }
       },
       "required": [
@@ -2457,13 +2497,17 @@
   },
   {
     "name": "erase_entity",
-    "description": "Delete an entity by its handle ID.",
+    "description": "Delete an entity by its handle ID.\n\nDestructive — pass __confirm=true to proceed.",
     "summary": "Delete an entity by its handle ID.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "handle": {
           "type": "string"
+        },
+        "confirm": {
+          "type": "boolean",
+          "default": false
         }
       },
       "required": [
@@ -2474,7 +2518,7 @@
   },
   {
     "name": "execute_command",
-    "description": "Execute a raw AutoCAD command, optionally with all of its interactive inputs.\n\nThe command and every item of `inputs` are joined into ONE space-separated\nstring and sent to AutoCAD in a single call. Interactive / multi-step\ncommands MUST be passed this way (command + all prompt responses together);\nsplitting them across several execute_command calls does not work, because\nAutoCAD cancels a command that is still awaiting input when the next string\nis queued.\n\nThe command runs asynchronously, so the send itself cannot report success.\nWith check=True (default) this tool waits `wait` seconds and then reads the\ncommand log back, so the answer contains what AutoCAD actually did — an\nunknown command or a rejected input shows up under \"outcome\" instead of\nfailing silently. Set check=False for fire-and-forget.\n\nExamples:\n    execute_command(\"ZOOM E\")\n    execute_command(\"_.CIRCLE\", [\"100,100\", \"40\"])\n    execute_command(\"_.POLYGON\", [\"6\", \"400,250\", \"_I\", \"60\"])",
+    "description": "Execute a raw AutoCAD command, optionally with all of its interactive inputs.\n\nThe command and every item of `inputs` are joined into ONE space-separated\nstring and sent to AutoCAD in a single call. Interactive / multi-step\ncommands MUST be passed this way (command + all prompt responses together);\nsplitting them across several execute_command calls does not work, because\nAutoCAD cancels a command that is still awaiting input when the next string\nis queued.\n\nThe command runs asynchronously, so the send itself cannot report success. The\nreply carries a `since` marker; pass it to `read_command_line` to see what\nAutoCAD actually did with the string.\n\nExamples:\n    execute_command(\"ZOOM E\")\n    execute_command(\"_.CIRCLE\", [\"100,100\", \"40\"])\n    execute_command(\"_.POLYGON\", [\"6\", \"400,250\", \"_I\", \"60\"])\n\nTwo refusals protect the bridge, both overridable with force=true: the call\nis refused while the command line is busy (anything sent then is eaten as a\nprompt response - call cancel_command first), and it is refused for commands\nthat raise a modal dialog before they are even sent, naming a dialog-free\nalternative where one exists. The command name is prefixed with _ by default so a localised\nAutoCAD accepts it; never with _. , which would force the built-in definition\nand break a command redefined by LISP or ARX.",
     "summary": "Execute a raw AutoCAD command, optionally with all of its interactive inputs.",
     "inputSchema": {
       "type": "object",
@@ -2488,13 +2532,13 @@
             "type": "string"
           }
         },
-        "check": {
+        "force": {
+          "type": "boolean",
+          "default": false
+        },
+        "auto_prefix": {
           "type": "boolean",
           "default": true
-        },
-        "wait": {
-          "type": "number",
-          "default": 0.5
         }
       },
       "required": [
@@ -3602,7 +3646,7 @@
   },
   {
     "name": "plot_to_pdf",
-    "description": "Plot the drawing to PDF and wait for the file to be written.\n\nGoes through the PlottingServices API rather than the command line, so it\nreports the real outcome and the real file size instead of fire-and-forget.\n\noutput_path  Where to write. A relative path resolves next to the drawing.\ndevice       Plot device, default \"DWG To PDF.pc3\". See plot_devices.\nplotter      Synonym for `device`, for MCP hosts whose bridge reserves the\n             argument name \"device\" and eats it before the tool sees it.\n             `device` wins if both are given.\npaper        Canonical or localized media name, or \"auto\" (default): the\n             smallest sheet whose *printable* area fits the window at the\n             requested scale, which is what picks full-bleed sheets over\n             bordered ones when the frame reaches the paper edge.\nstyle_table  Plot style table, default \"monochrome.ctb\"; \"none\" keeps\n             whatever the layout already uses.\narea         extents | window | display | layout | limits. Defaults to\n             \"window\" when `window` is given, otherwise \"extents\".\nwindow       [x1, y1, x2, y2] in drawing units - normally the sheet frame,\n             which in these drawings is a closed LWPOLYLINE on Defpoints.\nscale        \"1=1\" (default), \"1:100\", a number, or \"fit\".\noffset       \"center\" (default) or \"dx,dy\" in millimetres.\norientation  \"auto\" (default), \"portrait\" or \"landscape\".\nlayout       Layout to plot; default the current one.\nlineweights  Honour lineweights, default True.\noverwrite    Replace an existing file, default True.\ntrim         Crop the finished page down to the plotted window, default\n             True. Set False to keep the whole printer sheet.\n\nThe result reports the media actually used and its millimetre size.\n\nAutoCAD can only plot onto a paper size the device defines, so a\nnon-standard sheet (840x594, 297x630) is plotted 1:1 centred on the nearest\nlarger sheet and the surplus is cropped afterwards, here in the MCP server,\nusing pikepdf. That crop needs `pikepdf` installed (it is in\nrequirements.txt) and only happens for a `window` plot at a fixed scale with\n`offset` left at \"center\".\n\nThe answer always says what happened: `trimmed` true or false, with\n`trimmed_size_mm` and `trim_box_mm` when it worked, and `trim_error` or\n`trim_reason` with the text when it did not - a missing pikepdf, a page that\nis already the right size, or a target that does not fit. It is never\nswallowed, and a failed crop never invalidates the plot.",
+    "description": "Plot the drawing to PDF and wait for the file to be written.\n\nGoes through the PlottingServices API rather than the command line, so it\nreports the real outcome and the real file size instead of fire-and-forget.\n\noutput_path  Where to write. A relative path resolves next to the drawing.\ndevice       Plot device, default \"DWG To PDF.pc3\". See plot_devices.\nplotter      Synonym for `device`, for MCP hosts whose bridge reserves the\n             argument name \"device\" and eats it before the tool sees it.\n             `device` wins if both are given.\npaper        Canonical or localized media name, or \"auto\" (default): the\n             smallest sheet whose *printable* area fits the window at the\n             requested scale, which is what picks full-bleed sheets over\n             bordered ones when the frame reaches the paper edge.\nstyle_table  Plot style table, default \"monochrome.ctb\"; \"none\" keeps\n             whatever the layout already uses.\narea         extents | window | display | layout | limits. Defaults to\n             \"window\" when `window` is given, otherwise \"extents\".\nwindow       [x1, y1, x2, y2] in drawing units - normally the sheet frame,\n             which in these drawings is a closed LWPOLYLINE on Defpoints.\nscale        \"1=1\" (default), \"1:100\", a number, or \"fit\".\noffset       \"center\" (default) or [dx, dy] in millimetres.\norientation  \"auto\" (default), \"portrait\" or \"landscape\".\nlayout       Layout to plot; default the current one.\nlineweights  Honour lineweights, default True.\noverwrite    Replace an existing file, default True.\ntrim         Crop the finished page down to the plotted window, default\n             True. Set False to keep the whole printer sheet.\n\nThe result reports the media actually used and its millimetre size.\n\nAutoCAD can only plot onto a paper size the device defines, so a\nnon-standard sheet (840x594, 297x630) is plotted 1:1 centred on the nearest\nlarger sheet and the surplus is cropped afterwards, here in the MCP server,\nusing PdfSharp, and only for a `window` plot at a fixed scale - an `extents`\nor `fit` plot has no exact target size to crop to.\n\nThe answer always says what happened: `trimmed` true or false, with\n`trimmed_size_mm` and `trim_box_mm` when it worked, and `trim_error` or\n`trim_reason` when it was not attempted (`trim` false), or `trim_error` with the\ntext when it was attempted and failed - a page smaller than the target, a\nmissing file, or a malformed PDF. It is never\nswallowed, and a failed crop never invalidates the plot.",
     "summary": "Plot the drawing to PDF and wait for the file to be written.",
     "inputSchema": {
       "type": "object",
@@ -3635,7 +3679,10 @@
           "type": "string"
         },
         "offset": {
-          "type": "string"
+          "type": [
+            "string",
+            "array"
+          ]
         },
         "orientation": {
           "type": "string"
@@ -3702,11 +3749,16 @@
   },
   {
     "name": "purge_drawing",
-    "description": "Remove all unused layers, blocks, styles, and linetypes from the drawing.",
+    "description": "Remove all unused layers, blocks, styles, and linetypes from the drawing.\n\nDestructive — pass __confirm=true to proceed.",
     "summary": "Remove all unused layers, blocks, styles, and linetypes from the drawing.",
     "inputSchema": {
       "type": "object",
-      "properties": {},
+      "properties": {
+        "confirm": {
+          "type": "boolean",
+          "default": false
+        }
+      },
       "required": [],
       "additionalProperties": true
     }
@@ -4043,7 +4095,7 @@
   },
   {
     "name": "select_by_properties",
-    "description": "Find entities matching property filters (AND logic).\n\n`type` accepts the .NET name (\"BlockReference\"), the AutoCAD class name\n(\"AcDbBlockReference\"), the DXF name (\"INSERT\") or an alias (\"block\",\n\"text\", \"anytext\", \"pline\", \"dimension\", \"curve\"), and a comma-separated\nlist of any of those. `block_name` further restricts block references to\none block definition.",
+    "description": "Find entities matching property filters (AND logic).\n\n`type` accepts the .NET name (\"BlockReference\"), the AutoCAD class name\n(\"AcDbBlockReference\"), the DXF name (\"INSERT\") or an alias (\"block\",\n\"text\", \"anytext\", \"pline\", \"dimension\", \"curve\"), and a comma-separated\nlist of any of those. `block_name` further restricts block references to\none block definition.\n\n`fields` trims each record to the named keys, and `handles_only` returns a\nflat list of handles instead of a record per entity - both exist to keep a\nlarge selection from filling the answer with fields the caller will not read.\n`fields` takes an array or a comma-separated string, and `handle` is always kept\nwhether it is listed or not.",
     "summary": "Find entities matching property filters (AND logic).",
     "inputSchema": {
       "type": "object",
@@ -4074,6 +4126,19 @@
         },
         "block_name": {
           "type": "string"
+        },
+        "fields": {
+          "type": [
+            "array",
+            "string"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "handles_only": {
+          "type": "boolean",
+          "default": false
         }
       },
       "required": [],
@@ -4616,7 +4681,7 @@
   },
   {
     "name": "system_status",
-    "description": "Get the AutoCAD plugin status, version, and active document info.",
+    "description": "Get the AutoCAD plugin status, version, and active document info.\n\nAlso reports the command-line state read from CMDACTIVE / CMDNAMES:\ncommand_active, command_active_flags, command_names, command_state\n(idle | command | dialog | script), dialog_active and script_active, plus\ncommand_hint while something is active and last_command once the plugin has\nseen one.\n\nThat is what separates the two ways the bridge goes quiet: a command waiting\nat a prompt (clear it with cancel_command) from a modal dialog, which stops\nApplication.Idle entirely and can only be dismissed by hand.",
     "summary": "Get the AutoCAD plugin status, version, and active document info.",
     "inputSchema": {
       "type": "object",

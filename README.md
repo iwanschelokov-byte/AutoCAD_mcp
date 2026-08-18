@@ -36,7 +36,7 @@ beyond AutoCAD itself has to be installed on the end user's machine.
 
 ### Where each tool runs
 
-Of the 183 tools, 182 are commands inside the plugin and are proxied straight
+Of the 184 tools, 183 are commands inside the plugin and are proxied straight
 through. Two run in the server process instead, because they need libraries that
 have no business being loaded into `acad.exe`:
 
@@ -57,7 +57,7 @@ so the catalogue cannot advertise something nothing can serve.
 
 The C# plugin loads inside AutoCAD as an addin and exposes the same JSON-RPC pipeline over **two transports** simultaneously:
 
-1. **TCP socket on `localhost:8081`** — used by whichever MCP server you run, which marshals the 183 tools over stdio for Claude / Claude Code / Claude Desktop.
+1. **TCP socket on `localhost:8081`** — used by whichever MCP server you run, which marshals the 184 tools over stdio for Claude / Claude Code / Claude Desktop.
 2. **HTTP loopback on `localhost:8082`** — used by browser apps that can't open raw TCP sockets (a `fetch()` call to `http://127.0.0.1:8082/jsonrpc` reaches every command in the registry, with CORS headers + Chrome Private-Network-Access support out of the box).
 
 Both transports route through the same `JsonRpcHandler`, so every tool (`create_line`, `create_table`, `capture_screenshot`, …) is reachable identically from either path. Commands are marshaled to AutoCAD's main UI thread via `Application.Idle` + `DocumentLock` — except introspection tools, which answer directly so tool discovery keeps working while AutoCAD is busy.
@@ -66,12 +66,13 @@ Both transports route through the same `JsonRpcHandler`, so every tool (`create_
 
 AutoCAD's .NET API is single-threaded. The plugin uses `Application.Idle` event + `DocumentLock` to safely execute commands from the socket handler threads on the main thread.
 
-## Features — 183 MCP Tools
+## Features — 184 MCP Tools
 
-### System (6)
+### System (7)
 | Tool | Description |
 |------|-------------|
-| `system_status` | Plugin version, build tag, AutoCAD version, active document |
+| `system_status` | Plugin version, build tag, AutoCAD version, active document, and the command-line state (`CMDACTIVE` / `CMDNAMES`) with the last command the plugin saw |
+| `cancel_command` | Send ESC to abort a command waiting at a prompt. Refuses, and says so, when a modal dialog is up |
 | `list_methods` | All available commands |
 | `set_system_variable` | Set AutoCAD system variables (DIMTXT, LTSCALE, etc.) |
 | `get_system_variable` | Read system variable values |
@@ -453,7 +454,7 @@ Other commands:
 ### Step 3: Build the MCP Server
 
 ```bash
-builduild-all.ps1
+.\build\build-all.ps1
 ```
 
 This publishes `autocad-plugin/dist/server/autocad-mcp-server.exe` — one
@@ -463,7 +464,7 @@ also want the optional [AutoCode agent](autocad-plugin/src/AutoCADMCP.Agent/READ
 Check it can see AutoCAD before wiring it into a client:
 
 ```bash
-autocad-plugin\dist\serverutocad-mcp-server.exe --check
+autocad-plugin\dist\server\autocad-mcp-server.exe --check
 ```
 
 ### Step 4: Configure Your MCP Client
@@ -774,7 +775,9 @@ Two gates run before any command executes:
 | **Destructive confirmation** | `erase_*`/`delete_*`/`purge_*`/`overkill`/`ungroup`/`detach_*` require `"__confirm": true` | **on** |
 
 Toggle both with `set_server_options`. There are 10 destructive tools; run
-`get_capabilities` for the current list.
+`get_capabilities` for the current list. Each of them takes `confirm` in its own
+schema, so an MCP client can actually send the confirmation — a destructive tool
+whose schema omits it can never be executed, only refused.
 
 Every call is appended to an audit log at
 `%APPDATA%\AutoCADMCP\activity.jsonl` (one JSON object per line, carrying
@@ -788,6 +791,61 @@ the failure kind instead of matching error text:
 
 `NotFound` · `InvalidParam` · `ReadOnly` · `NoDocument` · `NeedsConfirm` ·
 `Unsupported` · `TxnFailed` · `Timeout` · `Internal`
+
+## When the Bridge Goes Quiet
+
+Silence has four causes and they need four different answers, so neither the
+server nor the plugin reports it as one error.
+
+A call that never reaches AutoCAD is classified by the server before it is
+reported: the socket error is combined with a look at the process list, because
+"AutoCAD is not running", "AutoCAD is running but the plugin was never started"
+and "the port is blocked" all refuse a loopback connect in exactly the same way.
+
+| What you see | What it means | What to do |
+|---|---|---|
+| `AUTOCAD IS NOT RUNNING: there is no acad.exe process` | Nothing can be listening | Start AutoCAD, open a drawing, run `MCPSTART` |
+| `AutoCAD IS running … THE PLUGIN IS NOT UP` | The bundle was never loaded, `MCPSTART` was not run in this session, or the plugin died while AutoCAD survived | Run `MCPSTART` |
+| `Connecting to … was DENIED` | Not a refusal but a prohibition: firewall, antivirus, or another process holding the port | Find the owner with `netstat -ano` and look for port 8081 |
+| `… was open and died in the middle of a call … AUTOCAD ITSELF TERMINATED` | AutoCAD crashed or was closed under the call | Restart AutoCAD and check whether it offers to recover unsaved work |
+
+Where a connection had worked before, the message also says when the plugin last
+answered, which separates "never worked" from "stopped working". `--check` uses
+the same wording.
+
+A call that reaches the plugin and then times out is a different matter, and the
+timeout says which: every call is marshalled onto AutoCAD's main thread through
+`Application.Idle`, so the age of the last idle tick is the signal. `Idle` still
+fires while a command sits at a prompt — the bridge answers, but anything sent
+next is eaten as that prompt's response, so call `cancel_command` first. `Idle`
+does not fire at all while a modal dialog is open: the main thread never comes
+back, nothing the plugin can do will close the dialog, and someone has to dismiss
+it by hand. `system_status` reports both states from `CMDACTIVE` / `CMDNAMES`
+before you guess.
+
+## Working Through Several Drawings
+
+Every tool works on the *active* document, and `drawing_open` is the only thing
+that changes which document that is. So the loop over files belongs outside
+AutoCAD: open, modify, save or close, move to the next.
+
+Driving the same loop from LISP inside AutoCAD looks tempting and fails in three
+ways that produce no error at all. A drawing opened through ObjectDBX
+(`vla-Open`) never becomes active, so `ssget "_X"` keeps selecting from the
+original — the script reports success on every file and changes nothing. `entmod`
+does not work on ObjectDBX entities, which have their own object model. `entdel`
+only removes entities from model and paper space; handed an entity inside a block
+definition it silently leaves it in place, and the block has to be redefined
+instead.
+
+The fourth case is not silent but fatal: switching the active document from LISP
+that is itself running in a document context (`vla-put-ActiveDocument`,
+`Documents.Open` with activation) destroys the context of the running code and
+takes the AutoCAD process down without a message.
+
+Since the failures are silent, verify a batch run by measuring or counting —
+`list_entities`, `select_by_properties`, `measure_area` — rather than treating the
+absence of errors as proof that the work was done.
 
 ## License
 

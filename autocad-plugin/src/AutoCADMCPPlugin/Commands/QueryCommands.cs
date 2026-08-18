@@ -244,6 +244,29 @@ namespace AutoCADMCPPlugin.Commands
             bool detailed = parameters["detailed"]?.Value<bool>() ?? false;
             string blockName = parameters["block_name"]?.ToString();
 
+            // A selection of 500 entities is a lot of JSON when the caller only
+            // wanted the handles to feed into the next call. "handles_only"
+            // returns a flat array of handle strings; "fields" keeps just the
+            // named keys of each summary ("handle" is always kept, since without
+            // it the result cannot be acted on).
+            bool handlesOnly = parameters["handles_only"]?.Value<bool>() ?? false;
+            var fields = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            JToken fieldsToken = parameters["fields"];
+            if (fieldsToken is JArray fieldArray)
+            {
+                foreach (JToken f in fieldArray)
+                {
+                    string name = f?.ToString();
+                    if (!string.IsNullOrWhiteSpace(name)) fields.Add(name.Trim());
+                }
+            }
+            else if (fieldsToken != null && fieldsToken.Type == JTokenType.String)
+            {
+                foreach (string name in fieldsToken.ToString().Split(','))
+                    if (!string.IsNullOrWhiteSpace(name)) fields.Add(name.Trim());
+            }
+            if (fields.Count > 0) fields.Add("handle");
+
             Database db = doc.Database;
             JArray matches = new JArray();
             int total = 0;
@@ -281,20 +304,41 @@ namespace AutoCADMCPPlugin.Commands
 
                     total++;
                     if (total <= offset) continue;
-                    if (matches.Count < limit)
-                        matches.Add(EntityInfo.Summarize(tr, id, ent, detailed));
+                    if (matches.Count >= limit) continue;
+
+                    if (handlesOnly)
+                    {
+                        string h = null;
+                        try { h = ent.Handle.ToString(); } catch { }
+                        matches.Add(h ?? "");
+                        continue;
+                    }
+
+                    JToken summary = EntityInfo.Summarize(tr, id, ent, detailed);
+                    if (fields.Count > 0 && summary is JObject full)
+                    {
+                        var trimmed = new JObject();
+                        foreach (JProperty prop in full.Properties())
+                            if (fields.Contains(prop.Name))
+                                trimmed[prop.Name] = prop.Value;
+                        summary = trimmed;
+                    }
+                    matches.Add(summary);
                 }
                 tr.Commit();
             }
 
-            return CommandResult.Ok(new JObject
+            var result = new JObject
             {
                 ["entities"] = matches,
                 ["count"] = matches.Count,
                 ["total"] = total,
                 ["offset"] = offset,
                 ["truncated"] = total > offset + matches.Count
-            });
+            };
+            if (handlesOnly) result["handles_only"] = true;
+            if (fields.Count > 0) result["fields"] = new JArray(fields);
+            return CommandResult.Ok(result);
         }
     }
 
