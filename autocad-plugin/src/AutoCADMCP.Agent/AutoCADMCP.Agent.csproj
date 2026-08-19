@@ -16,7 +16,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>autocad-mcp-agent</AssemblyName>
     <RootNamespace>AutoCADMCP.Agent</RootNamespace>
-    <Version>2.0.0</Version>
+    <Version>2.0.1</Version>
 
     <SelfContained>true</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>

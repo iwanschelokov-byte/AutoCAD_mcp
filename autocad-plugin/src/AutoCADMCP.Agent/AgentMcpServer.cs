@@ -89,7 +89,7 @@ public sealed class AgentMcpServer
                     ["serverInfo"] = new JObject
                     {
                         ["name"] = "autocad-autocode-agent",
-                        ["version"] = "2.0.0",
+                        ["version"] = "2.0.1",
                     },
                 });
             }

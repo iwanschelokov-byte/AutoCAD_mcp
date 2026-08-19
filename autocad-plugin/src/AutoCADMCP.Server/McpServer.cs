@@ -129,7 +129,7 @@ public sealed class McpServer
                     ["serverInfo"] = new JObject
                     {
                         ["name"] = "autocad-mcp",
-                        ["version"] = typeof(McpServer).Assembly.GetName().Version?.ToString(3) ?? "2.0.0"
+                        ["version"] = typeof(McpServer).Assembly.GetName().Version?.ToString(3) ?? "2.0.1"
                     }
                 });
             }

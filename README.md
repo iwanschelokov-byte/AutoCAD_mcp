@@ -1,5 +1,16 @@
 # AutoCAD MCP Plugin
 
+> **This is a fork.** The upstream repository, `NCO-1986/AutoCAD_mcp`, became
+> unavailable on 18 August 2026, shortly after it released v2.0.0. This fork
+> carries that release plus the fixes described in `CHANGELOG.md` under 2.0.1,
+> and exists so the work stays reachable and buildable — in particular for
+> AutoCAD 2027, which is the version it is tested against. Authorship in the
+> commit history is unchanged, and the licence stays as the upstream README
+> declared it: MIT. If the upstream repository comes back, these changes are
+> offered to it as a pull request.
+>
+> Русская версия документации: [README.ru.md](README.ru.md).
+
 AI-powered AutoCAD automation via the **Model Context Protocol (MCP)**. Enables Claude and other AI assistants to create, modify, query, search, and visually verify AutoCAD drawings through natural language.
 
 > "Draw a floor plan with 3 bedrooms" — and it does.
@@ -650,8 +661,8 @@ Or manually delete: `%APPDATA%\Autodesk\ApplicationPlugins\AutoCADMCPPlugin.bund
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `AUTOCAD_MCP_HOST` | `localhost` | Plugin TCP socket host (Python MCP server) |
-| `AUTOCAD_MCP_PORT` | `8081` | Plugin TCP socket port (Python MCP server) |
+| `AUTOCAD_MCP_HOST` | `localhost` | Plugin TCP socket host, read by the MCP server |
+| `AUTOCAD_MCP_PORT` | `8081` | Plugin TCP socket port, read by the MCP server |
 | `AUTOCAD_MCP_HTTP_PORT` | `8082` | Plugin HTTP shim port for browser apps. Set to `0` to disable. |
 | `AUTOCAD_MCP_HTTP_ORIGINS` | `*` | Comma-separated CORS allow-list for the HTTP shim. Pin to a specific origin (e.g. `https://pdf.example.com`) in production. |
 
@@ -670,7 +681,7 @@ autocad-plugin/
     │   ├── AutoCADMCPPlugin.csproj
     │   ├── Core/
     │   │   ├── Plugin.cs            # IExtensionApplication entry point
-    │   │   ├── SocketServer.cs      # TCP server on 8081 (Python MCP / Claude)
+    │   │   ├── SocketServer.cs      # TCP server on 8081 (MCP server / Claude)
     │   │   ├── HttpListenerServer.cs# HTTP shim on 8082 (browser apps, CORS + PNA)
     │   │   ├── JsonRpcHandler.cs    # Protocol handler shared by both transports
     │   │   ├── IdleActionRunner.cs  # Thread marshaling via Application.Idle

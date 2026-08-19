@@ -2,6 +2,79 @@
 
 All notable changes to the AutoCAD MCP plugin.
 
+## [2.0.1] — 2026-08-18
+
+Maintenance release in this fork, built and exercised against AutoCAD 2027
+(R26.0) on the `net10.0-windows` leg. Everything here was offered upstream; the
+upstream repository became unavailable before the pull request could be opened.
+
+### Fixed
+
+- **Four destructive tools could not be executed at all.** The safety gate
+  refuses `erase_entity`, `bulk_erase`, `delete_layer` and `purge_drawing` until
+  `"__confirm": true` arrives, but their `tools.json` entries declared no such
+  parameter, so a client that sends only declared parameters had no way to
+  confirm and every call returned `NeedsConfirm`. All ten destructive tools now
+  declare `confirm` consistently.
+- **A connection failure could not be told apart from a crash.** `PluginClient`
+  now combines the socket error with a look at the process list and names which
+  of four situations it is: AutoCAD not running, AutoCAD running with the plugin
+  not up, the port denied by a firewall or another owner, or a connection that
+  died mid-call because AutoCAD terminated. Where the bridge had answered
+  earlier, the message says when. `--check` reports the same sentence.
+- **A timeout said nothing about its cause.** It now names the method, the age
+  of the last `Application.Idle` tick (a gap over two seconds is the signature of
+  a modal dialog), the last command the plugin saw, and the number of calls
+  queued behind it.
+- **Timed-out work still ran later.** An action abandoned by `IdleActionRunner`
+  stayed queued and could execute minutes afterwards, potentially against a
+  different document. Abandoned items are now skipped when the queue drains.
+- **`bulk_create` could return `count: 0` with no explanation.** Elements
+  written flat rather than nested under `params` produced an empty parameter
+  bag and were swallowed by a bare `catch`; an unknown type fell through
+  silently. Both shapes are accepted now, common alternative parameter names are
+  resolved, and every element that does not become an entity is returned in
+  `skipped` with its index, type and reason. Elements and entities are counted
+  separately, because a hatch contributes its boundary as well.
+- **`plot_to_pdf` ignored `trim: false`** and cropped anyway; it now reports
+  `trim_reason` instead. It also names the drawing that was plotted
+  (`document`, `document_path`, `unsaved_changes`, `documents_open`), since it
+  always plots `MdiActiveDocument`.
+- **`tools.json` described the retired Python server.** `execute_command` no
+  longer advertises `check` / `wait` / `"outcome"`, which nothing implements, and
+  does advertise `auto_prefix`, which it reads. `plot_to_pdf` no longer promises
+  pikepdf (the crop is PdfSharp inside the server), no longer claims the crop
+  depends on `offset`, and declares `offset` as the string-or-array it accepts.
+- Two build commands in the README carried stray control bytes where
+  backslashes had been interpreted as escapes (`build\build-all.ps1` rendered as
+  "builduild-all.ps1").
+
+### Added
+
+- **`cancel_command`** — sends ESC to abort a command waiting at a prompt,
+  `repeat` 1..5 for commands that re-arm themselves. It refuses when a modal
+  dialog is up and says so, and it is classified read-only on purpose: sending
+  ESC modifies nothing, and read-only mode is exactly when a prompt still needs
+  unsticking. Tool count 183 in the registry, 184 advertised.
+- **Command-line state in `system_status`** — `command_active`,
+  `command_active_flags`, `command_names`, `command_state`
+  (`idle` / `command` / `dialog` / `script`), `dialog_active`, `script_active`,
+  `command_hint` and `last_command`, read from `CMDACTIVE` / `CMDNAMES`.
+- **`execute_command` guards** — refuses to send while the command line is busy,
+  and refuses about fifty commands that raise a modal dialog before they are
+  sent, naming a dialog-free alternative where one exists; `force: true`
+  overrides both. The command name is prefixed with `_` rather than `_.`, which
+  would force the built-in definition and break a command redefined by LISP or
+  ARX.
+- **`select_by_properties`** gained `fields` and `handles_only`, so a caller can
+  ask for a flat list of handles instead of a record per entity.
+- **`capture_screenshot`** gained `area: "drawing"`, `max_width`,
+  `format: "jpeg"` and `quality` — the difference between a 1.5 MB screenshot and
+  a 200 KB one — and reports the format actually written, which falls back to
+  PNG where the runtime has no JPEG encoder.
+- **Russian documentation** — `README.ru.md`, a full translation of the README
+  for this version.
+
 ## [2.0.0] — 2026-08-17
 
 The upgrade pass described in `UPGRADE_PLAN.md`: tool coverage more than doubled,
