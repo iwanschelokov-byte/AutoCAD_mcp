@@ -21,6 +21,12 @@ namespace AutoCADMCP.Server;
 /// reads any differently from AutoCAD having crashed under the caller. Since the
 /// four need four different remedies, the error code is combined with a look at
 /// the process list and with what this client has already seen work.
+///
+/// Every one of those sentences names the plugin. That is not decoration: with
+/// the plugin down a tool call degrades to isError carrying this text, and
+/// build/verify-mcp-server.ps1 asserts the text is actionable by looking for the
+/// word. A diagnosis that talks only about acad.exe leaves the caller without
+/// the one term that identifies what is missing.
 /// </summary>
 public sealed class PluginClient
 {
@@ -289,7 +295,8 @@ public sealed class PluginClient
         {
             if (codes.Contains(SocketError.AccessDenied))
             {
-                return $"Connecting to {_host}:{_port} was DENIED ({ex.Message}). The port is not " +
+                return $"Connecting to the AutoCAD plugin on {_host}:{_port} was DENIED " +
+                       $"({ex.Message}). The port is not " +
                        "refusing the connection, it is forbidding it: a firewall or antivirus rule, " +
                        "or another process already holding the port. This is not an AutoCAD fault - " +
                        $"check with `netstat -ano | findstr {_port}` which process owns it, and " +
@@ -301,9 +308,10 @@ public sealed class PluginClient
                 codes.Contains(SocketError.NetworkDown) ||
                 codes.Contains(SocketError.HostNotFound))
             {
-                return $"{_host}:{_port} is unreachable ({ex.Message}). This server only ever talks " +
-                       "to the plugin over loopback, so this usually means the host name resolves " +
-                       "somewhere unexpected - set AUTOCAD_MCP_HOST to 127.0.0.1 explicitly.";
+                return $"The AutoCAD plugin's address {_host}:{_port} is unreachable " +
+                       $"({ex.Message}). This server only ever talks to the plugin over loopback, so " +
+                       "this usually means the host name resolves somewhere unexpected - set " +
+                       "AUTOCAD_MCP_HOST to 127.0.0.1 explicitly.";
             }
         }
 
@@ -350,8 +358,8 @@ public sealed class PluginClient
                   "closed." + LastSeen()
                 : "";
 
-            return $"AUTOCAD IS NOT RUNNING: there is no acad.exe process, so nothing can be " +
-                   $"listening on {where} ({detail}).{crashed} Start AutoCAD, open a drawing, and " +
+            return $"AUTOCAD IS NOT RUNNING: there is no acad.exe process, so the plugin cannot " +
+                   $"be listening on {where} ({detail}).{crashed} Start AutoCAD, open a drawing, and " +
                    "run MCPSTART.";
         }
 
@@ -366,9 +374,10 @@ public sealed class PluginClient
 
         if (state == "running")
         {
-            return $"AutoCAD is running but the connection to {where} failed ({detail}). Run " +
-                   "MCPSTART in AutoCAD; if it reports the listener is already started, the port is " +
-                   $"being intercepted - check it with `netstat -ano | findstr {_port}`.";
+            return $"AutoCAD is running but the connection to the plugin on {where} failed " +
+                   $"({detail}). Run MCPSTART in AutoCAD; if it reports the listener is already " +
+                   $"started, the port is being intercepted - check it with " +
+                   $"`netstat -ano | findstr {_port}`.";
         }
 
         return $"Cannot reach the AutoCAD plugin on {where} ({detail}), and whether AutoCAD is " +
