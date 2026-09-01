@@ -35,7 +35,7 @@
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 
     <!-- Plugin metadata -->
-    <Version>2.0.1</Version>
+    <Version>2.0.2</Version>
     <Authors>AutoCAD MCP</Authors>
     <Description>MCP plugin for AI-to-AutoCAD communication via TCP socket</Description>
   </PropertyGroup>

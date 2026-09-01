@@ -16,7 +16,7 @@
   AutodeskProduct="AutoCAD"
   Name="AutoCAD MCP Plugin"
   Description="AI-to-AutoCAD communication via MCP protocol over TCP socket"
-  AppVersion="2.0.1"
+  AppVersion="2.0.2"
   ProductCode="{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
   UpgradeCode="{A1B2C3D4-E5F6-7890-ABCD-EF1234567891}">
 
@@ -34,7 +34,7 @@
     <!-- AutoCAD 2021-2024 (.NET Framework 4.8) -->
     <ComponentEntry
       AppName="AutoCADMCPPlugin_net48"
-      Version="2.0.1"
+      Version="2.0.2"
       ModuleName="./Contents/net48/AutoCADMCPPlugin.dll"
       AppDescription="AutoCAD MCP Plugin (.NET Framework 4.8)"
       LoadOnAutoCADStartup="True"
@@ -45,7 +45,7 @@
     <!-- AutoCAD 2025-2026 (.NET 8) -->
     <ComponentEntry
       AppName="AutoCADMCPPlugin_net8"
-      Version="2.0.1"
+      Version="2.0.2"
       ModuleName="./Contents/net8.0-windows/AutoCADMCPPlugin.dll"
       AppDescription="AutoCAD MCP Plugin (.NET 8)"
       LoadOnAutoCADStartup="True"
@@ -56,7 +56,7 @@
     <!-- AutoCAD 2027 (.NET 10) — present only when built with -p:IncludeNet10=true -->
     <ComponentEntry
       AppName="AutoCADMCPPlugin_net10"
-      Version="2.0.1"
+      Version="2.0.2"
       ModuleName="./Contents/net10.0-windows/AutoCADMCPPlugin.dll"
       AppDescription="AutoCAD MCP Plugin (.NET 10)"
       LoadOnAutoCADStartup="True"

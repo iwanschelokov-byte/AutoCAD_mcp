@@ -10,11 +10,19 @@
 ;      .\build\build-all.ps1
 ;
 ;  Silent install for IT deployment:
-;      AutoCADMCP-Setup-2.0.0.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+;      AutoCADMCP-Setup-<version>.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
 ; ============================================================================
 
 #define AppName        "AutoCAD MCP Plugin"
-#define AppVersion     "2.0.0"
+
+; The release workflow passes the tag through as iscc /DAppVersion=x.y.z. A bare
+; #define here would run afterwards and overwrite it, which is how 2.0.1 shipped
+; an installer named 2.0.0 that also registered itself as 2.0.0 in Programs and
+; Features. Guarded, the command line wins and a local `iscc` with no arguments
+; still builds.
+#ifndef AppVersion
+  #define AppVersion   "2.0.2"
+#endif
 #define AppPublisher   "AutoCAD MCP"
 #define BundleName     "AutoCADMCPPlugin.bundle"
 

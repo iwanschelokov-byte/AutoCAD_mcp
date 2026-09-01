@@ -2,6 +2,19 @@
 
 All notable changes to the AutoCAD MCP plugin.
 
+## [2.0.2] — 2026-09-01
+
+### Fixed
+
+- **The installer ignored the version it was told to build.**
+  `installer/AutoCADMCP.iss` defined `AppVersion` unconditionally, so the
+  `iscc /DAppVersion=` the release workflow passes was overwritten by the
+  script's own value. 2.0.1 therefore shipped `AutoCADMCP-Setup-2.0.0.exe`,
+  which also registered itself as 2.0.0 in Programs and Features, next to a
+  correctly named `AutoCADMCPPlugin-bundle-2.0.1.zip`. The define is guarded
+  with `#ifndef` now: the command line wins, and a local `iscc` with no
+  arguments still builds.
+
 ## [2.0.1] — 2026-08-18
 
 Maintenance release in this fork, built and exercised against AutoCAD 2027
