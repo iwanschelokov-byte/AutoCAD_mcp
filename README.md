@@ -390,24 +390,36 @@ host the same bundle and work without changes.
 
 ### Prerequisites
 
-- **AutoCAD 2022–2027** (any edition including LT with .NET support)
+- **AutoCAD 2021–2027** (any edition; LT is not supported — it cannot load .NET plugins)
 - **Windows** (AutoCAD is Windows-only)
-- **.NET SDK 8.0+** (only if building from source; **SDK 10.0** is needed for the AutoCAD 2027 target)
+- **.NET SDK** — only if building from source: SDK 8 covers the 2021–2026 legs, **SDK 10** is required for the AutoCAD 2027 target
 
-### Option A: Install Pre-built Plugin (No Build Tools Needed)
+### Option A: Installer from Releases (recommended)
 
-**Close AutoCAD first**, then run:
+Download `AutoCADMCP-Setup-<version>.exe` from the
+[latest release](../../releases/latest) and run it **with AutoCAD closed** — the
+installer checks for `acad.exe` and refuses to start otherwise, because the
+plugin DLLs would be locked and the install would half-apply.
 
-```bash
-cd autocad-plugin
-install-prebuilt.bat
-```
+It needs administrator rights: the plugin goes into
+`%ProgramData%\Autodesk\ApplicationPlugins\`, so every user profile on the
+machine picks it up. Keep the default component set, **Plugin and MCP server** —
+it also installs the self-contained server, which means there is nothing to
+build and **Step 3 below can be skipped**. The last page names the AutoCAD
+releases that were detected and the path to the server executable.
 
-This copies the pre-built DLLs from `dist/` to `%APPDATA%\Autodesk\ApplicationPlugins\` and AutoCAD will load the plugin automatically on startup.
+The installer is not code-signed, so Windows SmartScreen warns on first run:
+**More info** → **Run anyway**.
 
-> **AutoCAD 2027:** `dist/` currently ships `net48` and `net8.0-windows` only. The script says so plainly and skips the 2027 folder; for 2027 use Option B and build from source.
+### Option B: Portable Bundle from Releases (no administrator rights)
 
-### Option B: Build from Source
+Download `AutoCADMCPPlugin-bundle-<version>.zip` from the same release, unpack
+it, and copy the `AutoCADMCPPlugin.bundle` folder into
+`%APPDATA%\Autodesk\ApplicationPlugins\`. That installs the plugin for the
+current user only. The MCP server is not part of this archive — build it with
+Step 3.
+
+### Option C: Build from Source
 
 If you have .NET SDK installed:
 
@@ -420,7 +432,7 @@ This builds every target available on the machine, copies the DLLs to `%APPDATA%
 
 The MCP server is a single self-contained executable, so there is nothing else to install once the plugin is in place.
 
-### Option C: Manual Install (Copy & Paste)
+### Option D: Manual Install (Copy & Paste)
 
 If the scripts don't work, you can install manually:
 
@@ -451,6 +463,13 @@ If the scripts don't work, you can install manually:
 
 4. Open AutoCAD — the plugin loads automatically.
 
+> `autocad-plugin/install-prebuilt.bat` deploys the DLLs committed under
+> `autocad-plugin/dist/` without building anything. Those binaries are a
+> snapshot: they carry `net48` and `net8.0-windows` only, and they lag the
+> source and the releases, so a plugin installed that way can be missing tools
+> that this README documents. Prefer Option A or B; use the script only to
+> redeploy that exact snapshot offline.
+
 ### Step 2: Start the Server in AutoCAD
 
 ```
@@ -462,7 +481,12 @@ Other commands:
 - `MCPSTOP` — Stop the server
 - `MCPSTATUS` — Show connection count
 
-### Step 3: Build the MCP Server
+### Step 3: Get the MCP Server
+
+**Skip this step if you used Option A** — the installer already placed
+`server\autocad-mcp-server.exe` next to itself in the installation folder.
+
+Otherwise build it:
 
 ```bash
 .\build\build-all.ps1
@@ -650,12 +674,21 @@ Set `AUTOCAD_MCP_HTTP_PORT=0` in the user's environment to disable the HTTP list
 
 ## Uninstall
 
+Installed with the installer (Option A): remove **AutoCAD MCP Plugin** through
+Settings → Apps → Installed apps, or the classic Programs and Features. That
+takes the bundle and the server with it.
+
+Installed by script or by hand:
+
 ```bash
 cd autocad-plugin
 uninstall.bat
 ```
 
-Or manually delete: `%APPDATA%\Autodesk\ApplicationPlugins\AutoCADMCPPlugin.bundle\`
+Or delete the bundle folder yourself —
+`%APPDATA%\Autodesk\ApplicationPlugins\AutoCADMCPPlugin.bundle\` for a
+per-user install, `%ProgramData%\Autodesk\ApplicationPlugins\AutoCADMCPPlugin.bundle\`
+for a machine-wide one.
 
 ## Environment Variables
 
