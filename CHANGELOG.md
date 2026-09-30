@@ -6,6 +6,14 @@ All notable changes to the AutoCAD MCP plugin.
 
 ### Fixed
 
+- **The 2025/2026 leg stopped restoring.** The AutoCAD reference packages were
+  declared as floating ranges, and Autodesk published `AutoCAD.NET 25.0.2` into
+  the 2025 series built for `net10.0` only. NuGet duly picked it as the newest
+  `25.0.*`, and `dotnet restore` failed with NU1202 on every push — nothing to
+  do with the commit that happened to trigger it. All three legs now pin exact
+  versions: 24.0.0 for net48, 25.0.1 / 25.0.0 / 25.0.0 for net8.0-windows (the
+  newest in that series still built for net8), and 26.0.0 for net10.0-windows.
+
 - **A machine-wide install could leave AutoCAD without the plugin, silently.**
   The installer only ever wrote the bundle to `%ProgramData%\Autodesk\ApplicationPlugins`.
   That folder is a documented plugin location, but not every machine reads it —

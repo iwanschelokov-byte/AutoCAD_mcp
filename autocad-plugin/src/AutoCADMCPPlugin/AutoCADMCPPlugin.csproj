@@ -46,20 +46,28 @@
   <!-- family, so the binary loads on 2021 through 2024.            -->
   <!-- Building against newer refs would break loading on 2021.     -->
   <!-- ============================================================ -->
+  <!-- Exact versions, not floating ranges. Autodesk publishes into a series
+       after the fact: AutoCAD.NET 25.0.2 went out described as the 2025 API
+       but built for net10.0 only, and every project floating on 25.0.* stopped
+       restoring the moment it appeared. Pinning keeps a build reproducible and
+       makes a reference update a commit rather than a surprise. -->
   <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
-    <PackageReference Include="AutoCAD.NET" Version="24.0.*" />
-    <PackageReference Include="AutoCAD.NET.Core" Version="24.0.*" />
-    <PackageReference Include="AutoCAD.NET.Model" Version="24.0.*" />
+    <PackageReference Include="AutoCAD.NET" Version="24.0.0" />
+    <PackageReference Include="AutoCAD.NET.Core" Version="24.0.0" />
+    <PackageReference Include="AutoCAD.NET.Model" Version="24.0.0" />
   </ItemGroup>
 
   <!-- ============================================================ -->
   <!-- AutoCAD 2025-2026 (.NET 8)                                   -->
   <!-- NuGet 25.x = AutoCAD 2025/2026 (binary-compatible pair)      -->
   <!-- ============================================================ -->
+  <!-- 25.0.1 is the newest AutoCAD.NET in this series that still targets
+       net8.0; its own dependency pins Core to [25.0.0], and Model has no
+       25.0.1 either. 25.0.2 is net10.0-only and must not be picked up here. -->
   <ItemGroup Condition="'$(TargetFramework)' == 'net8.0-windows'">
-    <PackageReference Include="AutoCAD.NET" Version="25.0.*" />
-    <PackageReference Include="AutoCAD.NET.Core" Version="25.0.*" />
-    <PackageReference Include="AutoCAD.NET.Model" Version="25.0.*" />
+    <PackageReference Include="AutoCAD.NET" Version="25.0.1" />
+    <PackageReference Include="AutoCAD.NET.Core" Version="25.0.0" />
+    <PackageReference Include="AutoCAD.NET.Model" Version="25.0.0" />
   </ItemGroup>
 
   <!-- ============================================================ -->
@@ -69,9 +77,9 @@
   <!-- without AutoCAD 2027 installed.                              -->
   <!-- ============================================================ -->
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
-    <PackageReference Include="AutoCAD.NET" Version="26.0.*" />
-    <PackageReference Include="AutoCAD.NET.Core" Version="26.0.*" />
-    <PackageReference Include="AutoCAD.NET.Model" Version="26.0.*" />
+    <PackageReference Include="AutoCAD.NET" Version="26.0.0" />
+    <PackageReference Include="AutoCAD.NET.Core" Version="26.0.0" />
+    <PackageReference Include="AutoCAD.NET.Model" Version="26.0.0" />
   </ItemGroup>
 
   <!-- Newtonsoft.Json for net48 / net8 (AutoCAD 2021-2026) via NuGet -->
