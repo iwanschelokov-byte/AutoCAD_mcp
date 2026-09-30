@@ -2,6 +2,24 @@
 
 All notable changes to the AutoCAD MCP plugin.
 
+## [2.0.3] — 2026-09-30
+
+### Fixed
+
+- **A machine-wide install could leave AutoCAD without the plugin, silently.**
+  The installer only ever wrote the bundle to `%ProgramData%\Autodesk\ApplicationPlugins`.
+  That folder is a documented plugin location, but not every machine reads it —
+  a group policy or a locked-down profile can leave it unscanned, and nothing
+  says so: the files are in place, `APPAUTOLOAD` is 14, and `MCPSTART` still
+  comes back as an unknown command. Observed on a corporate AutoCAD 2027; the
+  same bundle loaded immediately from the per-user folder.
+
+  The installer now asks who the installation is for and **defaults to the
+  current user**, writing to `%APPDATA%\Autodesk\ApplicationPlugins`, which has
+  worked in every configuration seen so far and needs no administrator rights.
+  Choosing "all users" still installs machine-wide. The closing dialog names the
+  folder the bundle went to and says what to do if `MCPSTART` is not found.
+
 ## [2.0.2] — 2026-09-01
 
 ### Fixed

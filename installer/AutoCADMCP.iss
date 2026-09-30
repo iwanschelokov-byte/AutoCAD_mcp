@@ -4,6 +4,10 @@
 ;  Deploys the plugin bundle into the AutoCAD ApplicationPlugins folder so it
 ;  autoloads on startup, and optionally installs the MCP server executable.
 ;
+;  Installs for the current user by default (%APPDATA%\Autodesk\ApplicationPlugins);
+;  pick "all users" in the first dialog for a machine-wide install into
+;  %ProgramData%, which needs administrator rights.
+;
 ;  Build with:
 ;      iscc installer\AutoCADMCP.iss
 ;  after staging the bundle:
@@ -21,7 +25,7 @@
 ; Features. Guarded, the command line wins and a local `iscc` with no arguments
 ; still builds.
 #ifndef AppVersion
-  #define AppVersion   "2.0.2"
+  #define AppVersion   "2.0.3"
 #endif
 #define AppPublisher   "AutoCAD MCP"
 #define BundleName     "AutoCADMCPPlugin.bundle"
@@ -45,8 +49,17 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64compatible
-; Per-machine install so every user profile picks the plugin up.
-PrivilegesRequired=admin
+; Ask who the install is for, and default to the current user.
+;
+; A machine-wide install puts the bundle in %ProgramData%, which AutoCAD is
+; documented to scan - but not every machine does: a group policy or a locked
+; down profile can leave that folder unread, and the symptom is silent. Files
+; are in place, APPAUTOLOAD is on, and MCPSTART is still an unknown command.
+; The per-user folder under %APPDATA% is read in every configuration seen so
+; far, and it needs no administrator, so that is the default. Choosing "all
+; users" in the dialog still installs machine-wide.
+PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=dialog
 UninstallDisplayName={#AppName} {#AppVersion}
 SetupLogging=yes
 
@@ -65,14 +78,16 @@ Name: "server"; Description: "MCP server (self-contained, nothing else to instal
     Types: full custom
 
 [Files]
-; --- Plugin bundle -> ApplicationPlugins (all users) ---
-; {commonappdata}\Autodesk\ApplicationPlugins is scanned by every AutoCAD release.
+; --- Plugin bundle -> ApplicationPlugins ---
+; {autoappdata} follows the install mode: %APPDATA% for this user, %ProgramData%
+; for all users. Both are AutoCAD plugin locations; the per-user one is the one
+; that works everywhere.
 Source: "{#BundleDir}\PackageContents.xml"; \
-    DestDir: "{commonappdata}\Autodesk\ApplicationPlugins\{#BundleName}"; \
+    DestDir: "{autoappdata}\Autodesk\ApplicationPlugins\{#BundleName}"; \
     Components: plugin; Flags: ignoreversion
 
 Source: "{#BundleDir}\Contents\*"; \
-    DestDir: "{commonappdata}\Autodesk\ApplicationPlugins\{#BundleName}\Contents"; \
+    DestDir: "{autoappdata}\Autodesk\ApplicationPlugins\{#BundleName}\Contents"; \
     Components: plugin; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; --- MCP server ---
@@ -97,7 +112,7 @@ Filename: "{app}\server\autocad-mcp-server.exe"; Parameters: "--check"; \
 
 [UninstallDelete]
 ; Remove the bundle folder itself; Inno only tracks the files it copied.
-Type: filesandordirs; Name: "{commonappdata}\Autodesk\ApplicationPlugins\{#BundleName}"
+Type: filesandordirs; Name: "{autoappdata}\Autodesk\ApplicationPlugins\{#BundleName}"
 
 [Code]
 
@@ -159,7 +174,14 @@ begin
       MsgBox('Installed for AutoCAD: ' + Versions + #13#10#13#10 +
              'Start AutoCAD and type MCPSTART to begin.' + #13#10#13#10 +
              'Point your MCP client at:' + #13#10 +
-             ExpandConstant('{app}\server\autocad-mcp-server.exe'),
+             ExpandConstant('{app}\server\autocad-mcp-server.exe') + #13#10#13#10 +
+             'The plugin itself went to:' + #13#10 +
+             ExpandConstant('{autoappdata}\Autodesk\ApplicationPlugins\{#BundleName}') +
+             #13#10#13#10 +
+             'If MCPSTART comes back as an unknown command, this AutoCAD is not ' +
+             'reading that folder. Copy the bundle folder above into' + #13#10 +
+             ExpandConstant('{userappdata}\Autodesk\ApplicationPlugins') + #13#10 +
+             'and restart AutoCAD.',
              mbInformation, MB_OK);
   end;
 end;

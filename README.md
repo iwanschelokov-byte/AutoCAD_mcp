@@ -401,12 +401,19 @@ Download `AutoCADMCP-Setup-<version>.exe` from the
 installer checks for `acad.exe` and refuses to start otherwise, because the
 plugin DLLs would be locked and the install would half-apply.
 
-It needs administrator rights: the plugin goes into
-`%ProgramData%\Autodesk\ApplicationPlugins\`, so every user profile on the
-machine picks it up. Keep the default component set, **Plugin and MCP server** —
-it also installs the self-contained server, which means there is nothing to
-build and **Step 3 below can be skipped**. The last page names the AutoCAD
-releases that were detected and the path to the server executable.
+The first dialog asks who the installation is for. **Install for me only** is
+the default and needs no administrator rights: the bundle goes into
+`%APPDATA%\Autodesk\ApplicationPlugins\`, which AutoCAD reads in every
+configuration we have met. **Install for all users** writes to
+`%ProgramData%\Autodesk\ApplicationPlugins\` instead, so every profile on the
+machine picks the plugin up — that folder is a documented plugin location, but
+a group policy or a locked-down profile can leave it unscanned, and the failure
+is silent, so choose it only when you know the machine allows it.
+
+Keep the default component set, **Plugin and MCP server** — it also installs the
+self-contained server, which means there is nothing to build and **Step 3 below
+can be skipped**. The last page names the AutoCAD releases that were detected,
+the folder the bundle went to, and the path to the server executable.
 
 The installer is not code-signed, so Windows SmartScreen warns on first run:
 **More info** → **Run anyway**.
