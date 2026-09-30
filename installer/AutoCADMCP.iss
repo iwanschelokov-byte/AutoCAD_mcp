@@ -176,8 +176,7 @@ begin
              'Point your MCP client at:' + #13#10 +
              ExpandConstant('{app}\server\autocad-mcp-server.exe') + #13#10#13#10 +
              'The plugin itself went to:' + #13#10 +
-             ExpandConstant('{autoappdata}\Autodesk\ApplicationPlugins\{#BundleName}') +
-             #13#10#13#10 +
+             ExpandConstant('{autoappdata}\Autodesk\ApplicationPlugins\{#BundleName}') + #13#10#13#10 +
              'If MCPSTART comes back as an unknown command, this AutoCAD is not ' +
              'reading that folder. Copy the bundle folder above into' + #13#10 +
              ExpandConstant('{userappdata}\Autodesk\ApplicationPlugins') + #13#10 +
